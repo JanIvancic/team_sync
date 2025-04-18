@@ -1,197 +1,185 @@
 <template>
-  <div class="graph-container">
-    <h2>Team Visualization</h2>
-    <div ref="cy" class="cytoscape-container"></div>
+  <div class="team-graph">
+    <h3>Team Network</h3>
+    <div ref="graphContainer" class="graph-container"></div>
   </div>
 </template>
 
 <script>
-import cytoscape from 'cytoscape'
+import * as d3 from 'd3';
 
 export default {
-  props: ['teams'],
+  name: 'TeamGraph',
+  props: {
+    teams: {
+      type: Array,
+      required: true
+    }
+  },
+  data() {
+    return {
+      width: 800,
+      height: 600,
+      simulation: null,
+      svg: null
+    }
+  },
   mounted() {
-    this.renderGraph()
+    this.initGraph();
   },
   watch: {
     teams: {
-      handler() {
-        this.renderGraph()
-      },
+      handler: 'updateGraph',
       deep: true
     }
   },
   methods: {
-    renderGraph() {
-      console.log('Rendering graph with teams:', this.teams);
-
-      // Check if teams data is valid
-      if (!this.teams || !Array.isArray(this.teams) || this.teams.length === 0) {
-        console.error('Invalid teams data:', this.teams);
-        return;
+    initGraph() {
+      // Clear any existing graph
+      if (this.svg) {
+        this.svg.remove();
       }
 
-      const elements = []
+      // Create SVG container
+      this.svg = d3.select(this.$refs.graphContainer)
+        .append('svg')
+        .attr('width', this.width)
+        .attr('height', this.height)
+        .call(d3.zoom()
+          .scaleExtent([0.5, 4])
+          .on('zoom', (event) => {
+            this.svg.selectAll('g').attr('transform', event.transform);
+          }));
 
-      // Create nodes and edges for each team
-      this.teams.forEach((team, t) => {
-        console.log(`Processing team ${t}:`, team);
+      // Initialize simulation
+      this.simulation = d3.forceSimulation()
+        .force('link', d3.forceLink().id(d => d.id).distance(100))
+        .force('charge', d3.forceManyBody().strength(-300))
+        .force('center', d3.forceCenter(this.width / 2, this.height / 2));
 
-        // Skip empty teams
-        if (!team || !Array.isArray(team) || team.length === 0) {
-          console.warn(`Team ${t} is empty or invalid`);
-          return;
-        }
+      this.updateGraph();
+    },
+    updateGraph() {
+      if (!this.teams || this.teams.length === 0) return;
 
-        // Add nodes for each team member
-        team.forEach(u => {
-          if (!u) {
-            console.warn('Skipping undefined team member');
-            return;
-          }
+      // Prepare nodes and links
+      const nodes = [];
+      const links = [];
+      const nodeMap = new Map();
 
-          console.log(`Adding node for team member: ${u}`);
-          elements.push({
-            data: {
-              id: u,
-              label: u,
-              team: t
-            }
-          })
-        })
+      // Create nodes and links for each team
+      this.teams.forEach((team, teamIndex) => {
+        team.members.forEach((member, memberIndex) => {
+          const nodeId = `${teamIndex}-${memberIndex}`;
+          const node = {
+            id: nodeId,
+            name: member.name,
+            team: teamIndex,
+            x: Math.random() * this.width,
+            y: Math.random() * this.height
+          };
+          nodes.push(node);
+          nodeMap.set(nodeId, node);
 
-        // Add edges between team members
-        for (let i = 0; i < team.length; i++) {
-          for (let j = i + 1; j < team.length; j++) {
-            if (!team[i] || !team[j]) continue;
-
-            console.log(`Adding edge between ${team[i]} and ${team[j]}`);
-            elements.push({
-              data: {
-                id: `${team[i]}-${team[j]}`,
-                source: team[i],
-                target: team[j]
-              }
-            })
-          }
-        }
-      })
-
-      console.log('Generated graph elements:', elements);
-
-      // Don't render if no elements
-      if (elements.length === 0) {
-        console.warn('No elements to render in graph');
-        return;
-      }
-
-      // Create the graph
-      try {
-        const cy = cytoscape({
-          container: this.$refs.cy,
-          elements,
-          style: [
-            {
-              selector: 'node',
-              style: {
-                'label': 'data(label)',
-                'text-valign': 'center',
-                'text-halign': 'center',
-                'font-size': '14px',
-                'color': '#fff',
-                'text-outline-width': 2,
-                'text-outline-color': '#888',
-                'width': 60,
-                'height': 60,
-                'font-weight': 'bold'
-              }
-            },
-            {
-              selector: 'edge',
-              style: {
-                'line-color': '#999',
-                'width': 3,
-                'curve-style': 'bezier',
-                'opacity': 0.8
-              }
-            },
-            {
-              selector: '[team = 0]',
-              style: {
-                'background-color': '#0074D9',
-                'text-outline-color': '#0074D9'
-              }
-            },
-            {
-              selector: '[team = 1]',
-              style: {
-                'background-color': '#FF4136',
-                'text-outline-color': '#FF4136'
-              }
-            },
-            {
-              selector: '[team = 2]',
-              style: {
-                'background-color': '#2ECC40',
-                'text-outline-color': '#2ECC40'
-              }
-            },
-            {
-              selector: '[team = 3]',
-              style: {
-                'background-color': '#FFDC00',
-                'text-outline-color': '#FFDC00'
-              }
-            }
-          ],
-          layout: {
-            name: 'cose',
-            animate: true,
-            nodeDimensionsIncludeLabels: true,
-            refresh: 20,
-            fit: true,
-            padding: 50,
-            randomize: true,
-            componentSpacing: 150,
-            nodeRepulsion: 800000,  // Increased for better spacing
-            nodeOverlap: 20,
-            idealEdgeLength: 150,   // Increased for better spacing
-            edgeElasticity: 200,    // Increased for better spacing
-            nestingFactor: 5,
-            gravity: 100,           // Increased for better cohesion
-            numIter: 2000,          // More iterations for better layout
-            initialTemp: 250,
-            coolingFactor: 0.95,
-            minTemp: 1.0
+          // Create links between team members
+          for (let i = 0; i < memberIndex; i++) {
+            links.push({
+              source: `${teamIndex}-${i}`,
+              target: nodeId
+            });
           }
         });
+      });
 
-        // Center the graph after it's rendered
-        setTimeout(() => {
-          cy.center();
-          cy.fit();
-        }, 500);
+      // Clear existing elements
+      this.svg.selectAll('*').remove();
 
-        console.log('Graph rendered successfully');
-      } catch (error) {
-        console.error('Error rendering graph:', error);
-      }
+      // Create links
+      const link = this.svg.append('g')
+        .selectAll('line')
+        .data(links)
+        .enter()
+        .append('line')
+        .attr('stroke', '#999')
+        .attr('stroke-opacity', 0.6)
+        .attr('stroke-width', 2);
+
+      // Create nodes
+      const node = this.svg.append('g')
+        .selectAll('circle')
+        .data(nodes)
+        .enter()
+        .append('g')
+        .call(d3.drag()
+          .on('start', this.dragstarted)
+          .on('drag', this.dragged)
+          .on('end', this.dragended));
+
+      // Add circles to nodes
+      node.append('circle')
+        .attr('r', 20)
+        .attr('fill', d => d3.schemeCategory10[d.team % 10]);
+
+      // Add text labels
+      node.append('text')
+        .text(d => d.name)
+        .attr('x', 0)
+        .attr('y', 30)
+        .attr('text-anchor', 'middle')
+        .style('font-size', '12px');
+
+      // Update simulation
+      this.simulation
+        .nodes(nodes)
+        .on('tick', () => {
+          link
+            .attr('x1', d => d.source.x)
+            .attr('y1', d => d.source.y)
+            .attr('x2', d => d.target.x)
+            .attr('y2', d => d.target.y);
+
+          node.attr('transform', d => `translate(${d.x},${d.y})`);
+        });
+
+      this.simulation.force('link').links(links);
+    },
+    dragstarted(event, d) {
+      if (!event.active) this.simulation.alphaTarget(0.3).restart();
+      d.fx = d.x;
+      d.fy = d.y;
+    },
+    dragged(event, d) {
+      d.fx = event.x;
+      d.fy = event.y;
+    },
+    dragended(event, d) {
+      if (!event.active) this.simulation.alphaTarget(0);
+      d.fx = null;
+      d.fy = null;
     }
   }
 }
 </script>
 
 <style scoped>
-.graph-container {
-  margin: 30px 0;
+.team-graph {
+  margin-top: 20px;
+  padding: 20px;
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
-.cytoscape-container {
+.graph-container {
   width: 100%;
-  height: 500px;
-  margin-top: 20px;
-  border: 1px solid #ddd;
+  height: 600px;
+  border: 1px solid #eee;
   border-radius: 4px;
-  background-color: #f8f9fa;
+  overflow: hidden;
+}
+
+svg {
+  width: 100%;
+  height: 100%;
 }
 </style>
