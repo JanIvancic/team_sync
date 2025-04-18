@@ -118,5 +118,28 @@ def generate_teams_endpoint(sid):
     print(f"Formatted teams: {formatted_teams}")
     return jsonify({"teams": formatted_teams}), 200
 
+@app.route("/api/session/<sid>/teams", methods=["GET"])
+def get_teams(sid):
+    stored = redis_client.get(sid)
+    if not stored:
+        return jsonify({"error": "Session not found"}), 404
+    
+    session_data = json.loads(stored)
+    teams = session_data.get("teams", [])
+    
+    # Format teams for response
+    formatted_teams = []
+    for team in teams:
+        team_members = []
+        for member in team["members"]:
+            # Use the original member data without defaults
+            team_members.append(member)
+        formatted_teams.append({
+            "members": team_members,
+            "metrics": team["metrics"]
+        })
+    
+    return jsonify({"teams": formatted_teams}), 200
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)

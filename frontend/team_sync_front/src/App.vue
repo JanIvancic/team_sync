@@ -87,7 +87,7 @@
       />
 
       <div v-if="teams.length && sessionSettings.showTeamsToUsers" class="teams-container">
-        <h2>Your Team</h2>
+        <h2>Teams</h2>
         <div class="teams-list">
           <div v-for="(team, index) in teams" :key="index" class="team-card">
             <h3>Team {{ index + 1 }}</h3>
@@ -95,9 +95,18 @@
               <li 
                 v-for="(member, memberIndex) in team.members" 
                 :key="memberIndex"
-                :class="{ 'current-user': isCurrentUser(member) }"
+                :class="{ 
+                  'current-user': isCurrentUser(member),
+                  'anonymous-user': sessionSettings.anonymousMode
+                }"
               >
-                {{ member.name }}
+                <template v-if="sessionSettings.anonymousMode">
+                  User {{ memberIndex + 1 }}
+                </template>
+                <template v-else>
+                  {{ member.name }}
+                  <span v-if="isCurrentUser(member)" class="you-badge">(You)</span>
+                </template>
               </li>
             </ul>
           </div>
@@ -161,6 +170,9 @@ export default {
       if (!this.isAdmin) {
         this.fetchSessionSettings();
         this.settingsConfirmed = true;
+        // Start polling for both surveys and teams
+        this.pollSurveys();
+        this.pollTeams();
       }
     },
 
@@ -214,9 +226,11 @@ export default {
       }
     },
 
-    onSurveysUpdated(survey) {
-      this.currentUser = survey;
-      this.surveys.push(survey);
+    onSurveysUpdated(data) {
+      console.log('Survey updated:', data);
+      this.surveys.push(data.survey);
+      // Set the current user's name
+      this.currentUser = data.currentUser;
     },
 
     async pollSurveys() {
@@ -231,13 +245,33 @@ export default {
       }, 3000);
     },
 
+    async pollTeams() {
+      console.log('Starting team polling');
+      this.teamInterval = setInterval(async () => {
+        try {
+          const res = await axios.get(`/api/session/${this.sessionId}/teams`);
+          if (res.data && res.data.teams) {
+            this.teams = res.data.teams;
+            console.log('Teams updated:', this.teams);
+          }
+        } catch (error) {
+          console.error('Error polling teams:', error);
+        }
+      }, 3000);
+    },
+
     async generateTeams() {
       try {
         console.log('Generating teams with settings:', this.sessionSettings);
+        // Ensure characteristics is always an array
+        const characteristics = Array.isArray(this.sessionSettings.characteristics) 
+          ? this.sessionSettings.characteristics 
+          : ["tech_skills", "comm_skills", "creative_skills", "leadership_skills"];
+        
         const settings = {
           team_size: parseInt(this.sessionSettings.teamSize),
           team_approach: this.sessionSettings.teamApproach,
-          characteristics: this.sessionSettings.characteristics,
+          characteristics: characteristics,
           similarity_threshold: parseInt(this.sessionSettings.similarityThreshold),
           anonymous_mode: this.sessionSettings.anonymousMode,
           show_teams_to_users: this.sessionSettings.showTeamsToUsers
@@ -256,6 +290,8 @@ export default {
         
         // Stop polling surveys after teams are generated
         clearInterval(this.surveyInterval);
+        // Start polling teams
+        this.pollTeams();
       } catch (error) {
         console.error('Error generating teams:', error);
         alert('Failed to generate teams. Please try again.');
@@ -275,21 +311,16 @@ export default {
     },
 
     isCurrentUser(member) {
-      if (!this.currentUser) return false;
       if (this.sessionSettings.anonymousMode) {
-        return member.memberIndex === this.currentUser.memberIndex;
+        return false;
       }
-      // Check if member is a string (old format) or an object (new format)
-      if (typeof member === 'string') {
-        return member === this.currentUser.name;
-      }
-      // For new format, member is an object with name property
-      return member.name === this.currentUser.name;
+      return member.name === this.currentUser;
     }
   },
   beforeUnmount() {
-    // Clean up interval when component is unmounted
+    // Clean up intervals when component is unmounted
     clearInterval(this.surveyInterval);
+    clearInterval(this.teamInterval);
   }
 }
 </script>
@@ -427,5 +458,59 @@ input, select {
   padding: 5px 10px;
   border-radius: 4px;
   margin: 2px 0;
+}
+
+.you-badge {
+  font-size: 0.8em;
+  color: #666;
+  margin-left: 5px;
+}
+
+.anonymous-user {
+  font-family: monospace;
+}
+
+.teams-container {
+  margin-top: 20px;
+  padding: 20px;
+  background-color: #f5f5f5;
+  border-radius: 8px;
+}
+
+.teams-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  margin-top: 15px;
+}
+
+.team-card {
+  background: white;
+  padding: 15px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  min-width: 200px;
+}
+
+.team-card h3 {
+  margin-top: 0;
+  color: #333;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 10px;
+}
+
+.team-card ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.team-card li {
+  padding: 8px 0;
+  border-bottom: 1px solid #eee;
+}
+
+.team-card li:last-child {
+  border-bottom: none;
 }
 </style>

@@ -149,7 +149,11 @@ export default {
         console.log('Submitting survey:', this.survey);
         await axios.post(`/api/session/${this.sessionId}/survey`, this.survey);
         this.hasSubmitted = true;
-        this.$emit('surveys-updated', this.survey);
+        // Emit both the survey data and the current user's name
+        this.$emit('surveys-updated', {
+          survey: this.survey,
+          currentUser: this.survey.name
+        });
         alert('Survey submitted successfully!');
       } catch (error) {
         console.error('Error submitting survey:', error);
