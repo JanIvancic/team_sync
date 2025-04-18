@@ -108,20 +108,8 @@ def generate_teams_endpoint(sid):
     for team in teams:
         team_members = []
         for member in team["members"]:
-            # Ensure we have all required fields
-            member_data = {
-                "name": member.get("name", "Anonymous"),
-                "preferred_role": member.get("preferred_role", "any"),
-                "tech_skills": member.get("tech_skills", 3),
-                "comm_skills": member.get("comm_skills", 3),
-                "creative_skills": member.get("creative_skills", 3),
-                "leadership_skills": member.get("leadership_skills", 3),
-                "pressure_handling": member.get("pressure_handling", 3),
-                "team_satisfaction": member.get("team_satisfaction", 3),
-                "flexibility": member.get("flexibility", 3),
-                "conflict_management": member.get("conflict_management", "compromise")
-            }
-            team_members.append(member_data)
+            # Use the original member data without defaults
+            team_members.append(member)
         formatted_teams.append({
             "members": team_members,
             "metrics": team["metrics"]
