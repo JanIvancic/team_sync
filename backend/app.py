@@ -10,8 +10,9 @@ from redis import Redis
 from dotenv import load_dotenv
 from team_logic import make_teams
 import numpy as np
-from datetime import datetime
+from datetime import datetime, timedelta
 from whitenoise import WhiteNoise
+import uuid
 
 load_dotenv()
 
@@ -37,32 +38,49 @@ CORS(app, resources={
     }
 })
 
-# Initialize in-memory storage as fallback
-session_storage = {}
-
-# Configure Redis with fallback to in-memory storage
+# Try to connect to Redis, fall back to in-memory storage if not available
 try:
-    redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-    redis_client = Redis.from_url(redis_url, decode_responses=True)
-    # Test Redis connection
-    redis_client.ping()
-    print("Successfully connected to Redis")
+    redis_client = Redis(host='localhost', port=6379, db=0)
+    print("Connected to Redis")
 except Exception as e:
     print(f"Failed to connect to Redis: {e}")
     print("Falling back to in-memory storage")
     redis_client = None
 
+# In-memory storage for sessions
+sessions = {}
+
+def get_redis_key(key):
+    if redis_client:
+        return redis_client.get(key)
+    return sessions.get(key)
+
+def set_redis_key(key, value, expire_seconds=None):
+    if redis_client:
+        if expire_seconds:
+            redis_client.setex(key, expire_seconds, value)
+        else:
+            redis_client.set(key, value)
+    else:
+        sessions[key] = value
+
+def delete_redis_key(key):
+    if redis_client:
+        redis_client.delete(key)
+    else:
+        sessions.pop(key, None)
+
 def get_session(sid):
     if redis_client:
         data = redis_client.get(f"session:{sid}")
         return json.loads(data) if data else None
-    return session_storage.get(sid)
+    return sessions.get(sid)
 
 def set_session(sid, data):
     if redis_client:
         redis_client.set(f"session:{sid}", json.dumps(data))
     else:
-        session_storage[sid] = data
+        sessions[sid] = data
 
 def generate_session_id():
     return ''.join(random.choices('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ', k=6))
@@ -77,37 +95,67 @@ def serve_static(path):
 
 @app.route("/api/session", methods=["POST"])
 def create_session():
-    sid = generate_session_id()
-    set_session(sid, {
-        "session_id": sid, 
-        "users": [],
-        "settings": {
-            "anonymous_mode": False,
-            "show_teams_to_users": True,
-            "team_size": 4,
-            "team_approach": "homogeni",
-            "characteristics": ["tech_skills", "comm_skills", "creative_skills", "leadership_skills"],
-            "similarity_threshold": 50
+    session_id = str(uuid.uuid4())
+    data = {
+        'id': session_id,
+        'created_at': datetime.now().isoformat(),
+        'surveys': [],
+        'teams': [],
+        'settings': {
+            'anonymous_mode': False,
+            'team_size': 4
         }
-    })
-    return jsonify({"session_id": sid}), 201
+    }
+    set_redis_key(f'session:{session_id}', json.dumps(data))
+    return jsonify(data)
 
-@app.route("/api/session/<sid>/survey", methods=["POST"])
-def submit_survey(sid):
+@app.route("/api/session/<session_id>", methods=["GET"])
+def get_session(session_id):
+    data = get_redis_key(f'session:{session_id}')
+    if data:
+        return jsonify(json.loads(data))
+    return jsonify({'error': 'Session not found'}), 404
+
+@app.route("/api/session/<session_id>/survey", methods=["POST"])
+def submit_survey(session_id):
     data = request.json
-    sess = get_session(sid)
-    if not sess:
-        return jsonify({"error": "Session not found"}), 404
+    session_data = get_redis_key(f'session:{session_id}')
+    if not session_data:
+        return jsonify({'error': 'Session not found'}), 404
     
-    # If anonymous mode is enabled, generate a random ID for the user
-    if sess["settings"]["anonymous_mode"]:
-        user_id = f"user_{len(sess['users']) + 1}"
-        data["id"] = user_id
-        data["name"] = f"User {len(sess['users']) + 1}"
+    session_data = json.loads(session_data)
+    session_data['surveys'].append(data)
+    set_redis_key(f'session:{session_id}', json.dumps(session_data))
+    return jsonify(session_data)
+
+@app.route("/api/session/<session_id>/teams", methods=["POST"])
+def generate_teams(session_id):
+    session_data = get_redis_key(f'session:{session_id}')
+    if not session_data:
+        return jsonify({'error': 'Session not found'}), 404
     
-    sess["users"].append(data)
-    set_session(sid, sess)
-    return jsonify({"status": "ok", "user_id": data.get("id")}), 200
+    session_data = json.loads(session_data)
+    surveys = session_data['surveys']
+    if not surveys:
+        return jsonify({'error': 'No surveys submitted'}), 400
+    
+    df = pd.DataFrame(surveys)
+    teams = make_teams(df, session_data['settings']['team_size'])
+    session_data['teams'] = teams
+    set_redis_key(f'session:{session_id}', json.dumps(session_data))
+    return jsonify(session_data)
+
+@app.route("/api/session/<session_id>/settings", methods=["PUT"])
+def update_settings(session_id):
+    data = request.json
+    session_data = get_redis_key(f'session:{session_id}')
+    if not session_data:
+        return jsonify({'error': 'Session not found'}), 404
+    
+    session_data = json.loads(session_data)
+    session_data['settings'].update(data)
+    set_redis_key(f'session:{session_id}', json.dumps(session_data))
+    return jsonify(session_data)
 
 @app.route("/api/session/<sid>/surveys", methods=["GET"])
 def get_surveys(sid):
@@ -116,17 +164,6 @@ def get_surveys(sid):
         return jsonify({"error": "Session not found"}), 404
     return jsonify(sess["users"]), 200
 
-@app.route("/api/session/<sid>/settings", methods=["POST"])
-def update_settings(sid):
-    data = request.json
-    sess = get_session(sid)
-    if not sess:
-        return jsonify({"error": "Session not found"}), 404
-    
-    sess["settings"].update(data)
-    set_session(sid, sess)
-    return jsonify({"status": "ok"}), 200
-
 @app.route("/api/session/<sid>/settings", methods=["GET"])
 def get_settings(sid):
     sess = get_session(sid)
@@ -134,63 +171,6 @@ def get_settings(sid):
         return jsonify({"error": "Session not found"}), 404
     
     return jsonify(sess["settings"]), 200
-
-@app.route("/api/session/<sid>/teams", methods=["POST"])
-def generate_teams_endpoint(sid):
-    sess = get_session(sid)
-    if not sess:
-        return jsonify({"error": "Session not found"}), 404
-    
-    users = sess["users"]
-    request_data = request.json
-    
-    if len(users) < 2:
-        return jsonify({"error": "Need at least 2 users to form teams"}), 400
-    
-    print(f"Generating teams for {len(users)} users")
-    print(f"User data: {users}")
-    print(f"Request settings: {request_data.get('settings')}")
-    
-    # Convert users to DataFrame for team formation
-    df = pd.DataFrame(users)
-    
-    # Use settings from request if provided, otherwise use stored settings
-    settings = request_data.get('settings', sess["settings"])
-    
-    # Form teams based on settings
-    teams = make_teams(
-        df, 
-        settings["team_size"], 
-        settings["team_approach"],
-        settings["characteristics"],
-        settings["similarity_threshold"]
-    )
-    
-    # Store teams in session data
-    sess["teams"] = teams
-    set_session(sid, sess)
-    
-    # Format teams for response
-    formatted_teams = []
-    for team in teams:
-        team_members = []
-        for member in team["members"]:
-            # Find the original user data by matching the skills
-            original_user = next((u for u in users if all(u.get(k) == member.get(k) for k in member.keys() if k not in ['id', 'name'])), member)
-            # Preserve the original user's ID and name
-            member_with_id = {
-                'id': original_user.get('id', f'user_{len(team_members) + 1}'),
-                'name': original_user.get('name', f'User {len(team_members) + 1}'),
-                **member
-            }
-            team_members.append(member_with_id)
-        formatted_teams.append({
-            "members": team_members,
-            "metrics": team["metrics"]
-        })
-    
-    print(f"Formatted teams: {formatted_teams}")
-    return jsonify({"teams": formatted_teams}), 200
 
 @app.route("/api/session/<sid>/teams", methods=["GET"])
 def get_teams(sid):
@@ -230,4 +210,5 @@ def debug():
     })
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host="0.0.0.0", port=port)
