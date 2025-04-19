@@ -156,15 +156,34 @@ def get_session(session_id):
 
 @app.route("/api/session/<session_id>/survey", methods=["POST"])
 def submit_survey(session_id):
-    data = request.json
-    session_data = get_redis_key(f'session:{session_id}')
-    if not session_data:
-        return jsonify({'error': 'Session not found'}), 404
-    
-    session_data = json.loads(session_data)
-    session_data['surveys'].append(data)
-    set_redis_key(f'session:{session_id}', json.dumps(session_data))
-    return jsonify(session_data)
+    try:
+        data = request.json
+        session_data = get_redis_key(f'session:{session_id}')
+        if not session_data:
+            return jsonify({'error': 'Session not found'}), 404
+        
+        session_data = json.loads(session_data)
+        
+        # Generate a unique ID for this survey if not provided
+        if 'id' not in data:
+            data['id'] = f'user_{len(session_data["surveys"])}'
+            
+        # Add timestamp if not present
+        if 'timestamp' not in data:
+            data['timestamp'] = datetime.now().isoformat()
+            
+        session_data['surveys'].append(data)
+        set_redis_key(f'session:{session_id}', json.dumps(session_data))
+        
+        # Return the updated survey with its ID
+        return jsonify({
+            'survey': data,
+            'surveys': session_data['surveys']
+        })
+    except Exception as e:
+        print(f"Error submitting survey: {str(e)}")
+        print("Full error:", traceback.format_exc())
+        return jsonify({'error': 'Internal server error'}), 500
 
 @app.route("/api/session/<session_id>/teams", methods=["POST"])
 def generate_teams(session_id):
@@ -194,7 +213,11 @@ def generate_teams(session_id):
         print(f"- Similarity threshold: {similarity_threshold}")
         print(f"Number of surveys: {len(surveys)}")
         
+        # Create DataFrame with index as user IDs
         df = pd.DataFrame(surveys)
+        if 'id' in df.columns:
+            df.set_index('id', inplace=True)
+        
         print(f"Survey data shape: {df.shape}")
         print(f"Survey data columns: {df.columns.tolist()}")
         
@@ -209,9 +232,22 @@ def generate_teams(session_id):
         if not teams:
             return jsonify({'error': 'Failed to generate teams'}), 500
             
-        print(f"Generated teams: {json.dumps(teams, indent=2)}")
+        # Format teams to include user IDs
+        formatted_teams = []
+        for team in teams:
+            team_members = []
+            for member_id in team:
+                member_data = next((s for s in surveys if s.get('id') == member_id), None)
+                if member_data:
+                    team_members.append({
+                        'id': member_id,
+                        'name': member_data.get('name', member_id)
+                    })
+            formatted_teams.append(team_members)
+            
+        print(f"Generated teams: {json.dumps(formatted_teams, indent=2)}")
         
-        session_data['teams'] = teams
+        session_data['teams'] = formatted_teams
         set_session(session_id, session_data)
         return jsonify(session_data)
     except Exception as e:
