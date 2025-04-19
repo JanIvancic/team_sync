@@ -4,15 +4,17 @@ import os
 import random
 import json
 import pandas as pd
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 from redis import Redis
 from dotenv import load_dotenv
 from team_logic import make_teams
+import numpy as np
+from datetime import datetime
 
 load_dotenv()
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder='../frontend/team_sync_front/dist')
 CORS(app, resources={
     r"/api/*": {
         "origins": ["http://localhost:8080", "http://localhost:8081"],
@@ -173,6 +175,15 @@ def get_teams(sid):
         })
     
     return jsonify({"teams": formatted_teams}), 200
+
+# Serve React App
+@app.route('/', defaults={'path': ''})
+@app.route('/<path:path>')
+def serve(path):
+    if path != "" and os.path.exists(app.static_folder + '/' + path):
+        return send_from_directory(app.static_folder, path)
+    else:
+        return send_from_directory(app.static_folder, 'index.html')
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)

@@ -1,0 +1,14 @@
+{
+  "name": "team-sync",
+  "version": "1.0.0",
+  "description": "Team formation application",
+  "scripts": {
+    "postinstall": "cd frontend/team_sync_front && npm install",
+    "build": "bash build.sh",
+    "start": "gunicorn backend.app:app"
+  },
+  "engines": {
+    "node": "14.x",
+    "npm": "6.x"
+  }
+} 

@@ -130,6 +130,11 @@ import TeamGraph from './components/TeamGraph.vue'
 import AdminSettings from './components/AdminSettings.vue'
 import axios from 'axios'
 
+// Configure axios to use the correct base URL
+axios.defaults.baseURL = process.env.NODE_ENV === 'production' 
+  ? '/'  // In production, use relative paths
+  : 'http://localhost:5000';  // In development, use local backend
+
 export default {
   name: 'App',
   components: { Session, SurveyForm, TeamGraph, AdminSettings },
