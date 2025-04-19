@@ -116,6 +116,7 @@ export default {
         if (this.anonymousMode) {
           const userId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
           this.survey.id = userId;
+          this.survey.name = `Anonymous User ${userId.substring(5, 10)}`; // Add a readable name for the backend
           sessionStorage.setItem('currentUserId', userId);
         } else if (this.survey.name) {
           // In named mode, use the name as the ID
@@ -160,7 +161,7 @@ export default {
         }
       }
       
-      // In named mode, name is required
+      // Name is only required in named mode
       if (!this.anonymousMode && !this.survey.name) {
         return false;
       }
