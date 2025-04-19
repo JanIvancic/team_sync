@@ -34,12 +34,7 @@ app.wsgi_app = WhiteNoise(app.wsgi_app, root=static_folder)
 # Configure CORS with Heroku domain
 CORS(app, resources={
     r"/api/*": {
-        "origins": [
-            "http://localhost:8080",
-            "http://localhost:8081",
-            "https://team-sync-app.herokuapp.com",
-            "https://team-sync-app-8aa47d5c9ba6.herokuapp.com"
-        ],
+        "origins": ["*"],  # Allow all origins in production
         "methods": ["GET", "POST", "PUT", "OPTIONS"],
         "allow_headers": ["Content-Type"]
     }
@@ -47,16 +42,16 @@ CORS(app, resources={
 
 # Try to connect to Redis, fall back to in-memory storage if not available
 try:
-    redis_url = os.environ.get('REDISCLOUD_URL')
+    redis_url = os.environ.get('REDISCLOUD_URL') or os.environ.get('REDIS_URL')
     if not redis_url:
-        print("No REDISCLOUD_URL found, falling back to in-memory storage")
+        print("No Redis URL found, falling back to in-memory storage")
         redis_client = None
     else:
-        print(f"Attempting to connect to Redis Cloud at {redis_url}")
-        redis_client = Redis.from_url(redis_url)
+        print(f"Attempting to connect to Redis at {redis_url}")
+        redis_client = Redis.from_url(redis_url, decode_responses=True)
         # Test the connection
         redis_client.ping()
-        print("Successfully connected to Redis Cloud")
+        print("Successfully connected to Redis")
 except Exception as e:
     print(f"Failed to connect to Redis: {str(e)}")
     print("Full error:", traceback.format_exc())
@@ -67,9 +62,14 @@ except Exception as e:
 sessions = {}
 
 def get_redis_key(key):
-    if redis_client:
-        return redis_client.get(key)
-    return sessions.get(key)
+    try:
+        if redis_client:
+            value = redis_client.get(key)
+            return value if value else None
+        return sessions.get(key)
+    except Exception as e:
+        print(f"Error getting Redis key {key}: {str(e)}")
+        return sessions.get(key)
 
 def set_redis_key(key, value, expire_seconds=None):
     try:
@@ -78,16 +78,10 @@ def set_redis_key(key, value, expire_seconds=None):
                 redis_client.setex(key, expire_seconds, value)
             else:
                 redis_client.set(key, value)
-            print(f"Successfully set Redis key: {key}")
-        else:
-            sessions[key] = value
-            print(f"Stored in memory: {key}")
+        sessions[key] = value
     except Exception as e:
         print(f"Error setting Redis key {key}: {str(e)}")
-        print("Full error:", traceback.format_exc())
-        # Fall back to in-memory storage
         sessions[key] = value
-        print(f"Fallback: Stored in memory: {key}")
 
 def delete_redis_key(key):
     if redis_client:
@@ -95,16 +89,23 @@ def delete_redis_key(key):
     else:
         sessions.pop(key, None)
 
-def get_session(sid):
-    if redis_client:
-        data = redis_client.get(f"session:{sid}")
-        return json.loads(data) if data else None
-    return sessions.get(sid)
+def get_session_data(sid):
+    try:
+        if redis_client:
+            data = redis_client.get(f"session:{sid}")
+            return json.loads(data) if data else None
+        return sessions.get(sid)
+    except Exception as e:
+        print(f"Error getting session {sid}: {str(e)}")
+        return sessions.get(sid)
 
 def set_session(sid, data):
-    if redis_client:
-        redis_client.set(f"session:{sid}", json.dumps(data))
-    else:
+    try:
+        if redis_client:
+            redis_client.set(f"session:{sid}", json.dumps(data))
+        sessions[sid] = data
+    except Exception as e:
+        print(f"Error setting session {sid}: {str(e)}")
         sessions[sid] = data
 
 def generate_session_id():
@@ -167,20 +168,56 @@ def submit_survey(session_id):
 
 @app.route("/api/session/<session_id>/teams", methods=["POST"])
 def generate_teams(session_id):
-    session_data = get_redis_key(f'session:{session_id}')
-    if not session_data:
-        return jsonify({'error': 'Session not found'}), 404
-    
-    session_data = json.loads(session_data)
-    surveys = session_data['surveys']
-    if not surveys:
-        return jsonify({'error': 'No surveys submitted'}), 400
-    
-    df = pd.DataFrame(surveys)
-    teams = make_teams(df, session_data['settings']['team_size'])
-    session_data['teams'] = teams
-    set_redis_key(f'session:{session_id}', json.dumps(session_data))
-    return jsonify(session_data)
+    try:
+        session_data = get_session_data(session_id)
+        if not session_data:
+            return jsonify({'error': 'Session not found'}), 404
+        
+        surveys = session_data.get('surveys', [])
+        if not surveys:
+            return jsonify({'error': 'No surveys submitted'}), 400
+        
+        # Get settings from request body if provided, otherwise use session settings
+        request_settings = request.json.get('settings', {}) if request.json else {}
+        settings = session_data.get('settings', {})
+        settings.update(request_settings)  # Update with any provided settings
+        
+        team_size = int(settings.get('team_size', 4))
+        team_approach = settings.get('team_approach', 'homogeni')
+        characteristics = settings.get('characteristics', ["tech_skills", "comm_skills", "creative_skills", "leadership_skills"])
+        similarity_threshold = float(settings.get('similarity_threshold', 50))
+        
+        print(f"Generating teams with settings:")
+        print(f"- Team size: {team_size}")
+        print(f"- Team approach: {team_approach}")
+        print(f"- Characteristics: {characteristics}")
+        print(f"- Similarity threshold: {similarity_threshold}")
+        print(f"Number of surveys: {len(surveys)}")
+        
+        df = pd.DataFrame(surveys)
+        print(f"Survey data shape: {df.shape}")
+        print(f"Survey data columns: {df.columns.tolist()}")
+        
+        teams = make_teams(
+            users=df,
+            team_size=team_size,
+            team_approach=team_approach,
+            characteristics=characteristics,
+            similarity_threshold=similarity_threshold
+        )
+        
+        if not teams:
+            return jsonify({'error': 'Failed to generate teams'}), 500
+            
+        print(f"Generated teams: {json.dumps(teams, indent=2)}")
+        
+        session_data['teams'] = teams
+        set_session(session_id, session_data)
+        return jsonify(session_data)
+    except Exception as e:
+        print(f"Error generating teams: {str(e)}")
+        print("Full error:", traceback.format_exc())
+        return jsonify({'error': str(e)}), 500
 
 @app.route("/api/session/<session_id>/settings", methods=["GET", "PUT", "POST"])
 def handle_settings(session_id):
@@ -219,31 +256,45 @@ def get_surveys(sid):
     session_data = json.loads(session_data)
     return jsonify(session_data.get("surveys", [])), 200
 
-@app.route("/api/session/<sid>/teams", methods=["GET"])
-def get_teams(sid):
-    sess = get_session(sid)
-    if not sess:
-        return jsonify({"error": "Session not found"}), 404
-    
-    teams = sess.get("teams", [])
-    
-    # Format teams for response
-    formatted_teams = []
-    for team in teams:
-        team_members = []
-        for member in team["members"]:
-            # In anonymous mode, preserve the user ID but use generic names
-            if sess["settings"]["anonymous_mode"]:
-                member = member.copy()
-                # Only update the name, keep the ID
-                member["name"] = f"User {member.get('id', '').split('_')[1] if member.get('id') else 'Unknown'}"
-            team_members.append(member)
-        formatted_teams.append({
-            "members": team_members,
-            "metrics": team["metrics"]
-        })
-    
-    return jsonify({"teams": formatted_teams}), 200
+@app.route("/api/session/<session_id>/teams", methods=["GET"])
+def get_teams(session_id):
+    try:
+        # Use get_redis_key helper instead of direct redis_client access
+        session_data = get_redis_key(f'session:{session_id}')
+        if not session_data:
+            return jsonify({'error': 'Session not found'}), 404
+            
+        # Parse JSON if it's a string
+        if isinstance(session_data, str):
+            try:
+                session_data = json.loads(session_data)
+            except json.JSONDecodeError:
+                return jsonify({'error': 'Invalid session data format'}), 500
+                
+        # Get teams and settings
+        teams = session_data.get('teams', [])
+        settings = session_data.get('settings', {})
+        anonymous_mode = settings.get('anonymous_mode', False)
+        
+        # Format team member names based on anonymous mode
+        formatted_teams = []
+        for i, team in enumerate(teams):
+            formatted_team = []
+            for j, member in enumerate(team):
+                if anonymous_mode:
+                    formatted_team.append({
+                        'id': member['id'],
+                        'name': f'Member {j+1}'
+                    })
+                else:
+                    formatted_team.append(member)
+            formatted_teams.append(formatted_team)
+            
+        return jsonify(formatted_teams)
+    except Exception as e:
+        print(f"Error in get_teams: {str(e)}")
+        print("Full error:", traceback.format_exc())
+        return jsonify({'error': 'Internal server error'}), 500
 
 # Debug route to check application status
 @app.route('/debug')
