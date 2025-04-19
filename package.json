@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "start": "python backend/app.py",
-    "build": "cd frontend/team_sync_front && npm install && npm run build"
+    "build": "cd frontend/team_sync_front && npm install --legacy-peer-deps && npm run build && cd ../.. && mkdir -p static && cp -r frontend/team_sync_front/dist/* static/"
   },
   "keywords": [],
   "author": "",
@@ -26,6 +26,7 @@
     "vuex": "^4.0.0-0",
     "eslint-plugin-vue": "^8.0.3",
     "eslint": "^7.32.0",
-    "@babel/eslint-parser": "^7.12.16"
+    "@babel/eslint-parser": "^7.12.16",
+    "vite": "^5.0.12"
   }
 } 
