@@ -160,12 +160,12 @@ export default {
         return null;
       }
 
-      const currentUserId = sessionStorage.getItem('currentUser');
+      const currentUserId = sessionStorage.getItem('currentUserId');
       console.log('Looking for team with current user:', currentUserId);
 
       // First check if we have a valid user ID
       if (!currentUserId) {
-        console.log('No current user ID found');
+        console.log('No current user ID found in sessionStorage');
         return null;
       }
 
@@ -306,11 +306,17 @@ export default {
         this.surveys = data;
       } else {
         // Store the current user ID from the backend response
-        if (data.currentUser) {
-          console.log('Setting current user ID:', data.currentUser);
-          sessionStorage.setItem('currentUserId', data.currentUser);
-          // Also store it in the component's data for easier access
-          this.currentUser = data.currentUser;
+        if (data.user_id) {
+          console.log('Setting current user ID from response:', data.user_id);
+          sessionStorage.setItem('currentUserId', data.user_id);
+          this.currentUser = data.user_id;
+        } else if (data.survey && data.survey.user_id) {
+          // If user_id is not in the root, try to get it from the survey
+          console.log('Setting current user ID from survey:', data.survey.user_id);
+          sessionStorage.setItem('currentUserId', data.survey.user_id);
+          this.currentUser = data.survey.user_id;
+        } else {
+          console.warn('No user ID found in survey response:', data);
         }
         
         // Add the new survey to the list
@@ -424,7 +430,8 @@ export default {
         currentUserId, 
         memberId: member?.id, 
         memberName: member?.name,
-        anonymousMode: this.sessionSettings.anonymousMode 
+        anonymousMode: this.sessionSettings.anonymousMode,
+        member: member
       });
       
       if (!currentUserId || !member) {
