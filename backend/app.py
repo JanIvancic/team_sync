@@ -213,16 +213,14 @@ def generate_teams(session_id):
         print(f"- Similarity threshold: {similarity_threshold}")
         print(f"Number of surveys: {len(surveys)}")
         
-        # Create DataFrame with index as user IDs
+        # Create DataFrame with survey data
         df = pd.DataFrame(surveys)
-        if 'id' in df.columns:
-            df.set_index('id', inplace=True)
-        
         print(f"Survey data shape: {df.shape}")
         print(f"Survey data columns: {df.columns.tolist()}")
         
+        # Generate teams
         teams = make_teams(
-            users=df,
+            users=surveys,  # Pass the raw survey data
             team_size=team_size,
             team_approach=team_approach,
             characteristics=characteristics,
@@ -232,7 +230,7 @@ def generate_teams(session_id):
         if not teams:
             return jsonify({'error': 'Failed to generate teams'}), 500
             
-        # Format teams to include user IDs
+        # Format teams with member details
         formatted_teams = []
         for team in teams:
             team_members = []
@@ -243,7 +241,8 @@ def generate_teams(session_id):
                         'id': member_id,
                         'name': member_data.get('name', member_id)
                     })
-            formatted_teams.append(team_members)
+            if team_members:  # Only add teams that have members
+                formatted_teams.append(team_members)
             
         print(f"Generated teams: {json.dumps(formatted_teams, indent=2)}")
         

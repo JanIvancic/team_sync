@@ -71,8 +71,11 @@ def make_teams(users, team_size, team_approach, characteristics, similarity_thre
     print(f"Characteristics: {characteristics}")
     print(f"User data: {users}")
     
-    # Convert DataFrame to list of dictionaries
-    users_list = users.to_dict('records')
+    # Convert DataFrame to list of dictionaries if it's not already
+    if isinstance(users, pd.DataFrame):
+        users_list = users.reset_index().to_dict('records')
+    else:
+        users_list = users
     print(f"Converted user data: {users_list}")
     
     # Calculate similarity matrix
@@ -100,7 +103,7 @@ def make_teams(users, team_size, team_approach, characteristics, similarity_thre
         # For homogeneous teams, sort users by their average skill level
         user_avg_skills = []
         for i, user in enumerate(users_list):
-            avg_skill = np.mean([user[char] for char in characteristics])
+            avg_skill = np.mean([float(user.get(char, 0)) for char in characteristics])
             user_avg_skills.append((i, avg_skill))
         
         # Sort by average skill level
@@ -108,34 +111,26 @@ def make_teams(users, team_size, team_approach, characteristics, similarity_thre
         sorted_indices = [x[0] for x in user_avg_skills]
         
         # Create teams with similar skill levels
-        for team_idx in range(num_teams):
-            team = []
-            print(f"Started team {team_idx + 1}")
-            
-            # Add users to the team
-            while len(team) < team_size and len(used_indices) < len(users_list):
-                for i in sorted_indices:
-                    if i not in used_indices:
-                        team.append(users_list[i])
-                        used_indices.add(i)
-                        print(f"Added user index {i} to team {team_idx + 1}")
-                        break
-            
-            # Calculate team metrics
-            metrics = calculate_team_metrics(team, characteristics)
-            teams.append({
-                'members': team,
-                'metrics': metrics
-            })
-            print(f"Processing team {team_idx + 1}:")
-            for member in team:
-                print(f"Adding user: {member}")
+        current_team = []
+        for i in sorted_indices:
+            if i not in used_indices:
+                user = users_list[i]
+                current_team.append(user.get('id', str(i)))
+                used_indices.add(i)
+                
+                if len(current_team) == team_size:
+                    teams.append(current_team)
+                    current_team = []
+        
+        # Add any remaining users to the last team
+        if current_team:
+            teams.append(current_team)
     
     else:  # heterogeneous
         # For heterogeneous teams, sort users by their average skill level
         user_avg_skills = []
         for i, user in enumerate(users_list):
-            avg_skill = np.mean([user[char] for char in characteristics])
+            avg_skill = np.mean([float(user.get(char, 0)) for char in characteristics])
             user_avg_skills.append((i, avg_skill))
         
         # Sort by average skill level
@@ -143,48 +138,45 @@ def make_teams(users, team_size, team_approach, characteristics, similarity_thre
         sorted_indices = [x[0] for x in user_avg_skills]
         
         # Create teams with diverse skill levels
-        for team_idx in range(num_teams):
-            team = []
-            print(f"Started team {team_idx + 1}")
+        current_team = []
+        while len(used_indices) < len(users_list):
+            if not current_team:
+                # Start with highest skill user
+                for i in reversed(sorted_indices):
+                    if i not in used_indices:
+                        user = users_list[i]
+                        current_team.append(user.get('id', str(i)))
+                        used_indices.add(i)
+                        break
+            else:
+                # Find most different user
+                current_avg = np.mean([
+                    np.mean([float(users_list[sorted_indices.index(j)].get(char, 0)) for char in characteristics])
+                    for j in [sorted_indices.index(int(uid)) for uid in current_team]
+                ])
+                
+                best_idx = -1
+                max_diff = -1
+                for i in sorted_indices:
+                    if i not in used_indices:
+                        user_avg = np.mean([float(users_list[i].get(char, 0)) for char in characteristics])
+                        diff = abs(user_avg - current_avg)
+                        if diff > max_diff:
+                            max_diff = diff
+                            best_idx = i
+                
+                if best_idx != -1:
+                    user = users_list[best_idx]
+                    current_team.append(user.get('id', str(best_idx)))
+                    used_indices.add(best_idx)
             
-            # Add users to the team
-            while len(team) < team_size and len(used_indices) < len(users_list):
-                if not team:
-                    # If team is empty, take the user with highest skill level
-                    for i in reversed(sorted_indices):
-                        if i not in used_indices:
-                            team.append(users_list[i])
-                            used_indices.add(i)
-                            print(f"Added user index {i} to team {team_idx + 1}")
-                            break
-                else:
-                    # Find the user with the most different skill level
-                    current_avg = np.mean([np.mean([member[char] for char in characteristics]) for member in team])
-                    best_idx = -1
-                    max_diff = -1
-                    
-                    for i in sorted_indices:
-                        if i not in used_indices:
-                            user_avg = np.mean([users_list[i][char] for char in characteristics])
-                            diff = abs(user_avg - current_avg)
-                            if diff > max_diff:
-                                max_diff = diff
-                                best_idx = i
-                    
-                    if best_idx != -1:
-                        team.append(users_list[best_idx])
-                        used_indices.add(best_idx)
-                        print(f"Added user index {best_idx} to team {team_idx + 1}")
-            
-            # Calculate team metrics
-            metrics = calculate_team_metrics(team, characteristics)
-            teams.append({
-                'members': team,
-                'metrics': metrics
-            })
-            print(f"Processing team {team_idx + 1}:")
-            for member in team:
-                print(f"Adding user: {member}")
+            if len(current_team) == team_size:
+                teams.append(current_team)
+                current_team = []
+        
+        # Add any remaining users to the last team
+        if current_team:
+            teams.append(current_team)
     
     print(f"Final teams: {teams}")
     return teams
