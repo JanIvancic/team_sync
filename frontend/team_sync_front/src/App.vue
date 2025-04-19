@@ -89,19 +89,23 @@
       <div v-if="teams.length && sessionSettings.showTeamsToUsers" class="teams-container">
         <h2>Teams</h2>
         <div class="teams-list">
-          <div v-for="(team, index) in teams" :key="index" class="team-card">
-            <h3>Team {{ index + 1 }}</h3>
+          <div 
+            v-if="myTeam" 
+            class="team-card"
+          >
+            <h3>Team {{ teams.indexOf(myTeam) + 1 }}</h3>
             <ul>
               <li 
-                v-for="(member, memberIndex) in team.members" 
-                :key="memberIndex"
+                v-for="(member, idx) in myTeam.members" 
+                :key="member.id"
                 :class="{ 
                   'current-user': isCurrentUser(member),
                   'anonymous-user': sessionSettings.anonymousMode
                 }"
               >
                 <template v-if="sessionSettings.anonymousMode">
-                  User {{ memberIndex + 1 }}
+                  Member {{ idx + 1 }}
+                  <span v-if="isCurrentUser(member)" class="you-badge">(You)</span>
                 </template>
                 <template v-else>
                   {{ member.name }}
@@ -134,6 +138,7 @@ export default {
       isAdmin: false,
       settingsConfirmed: false,
       currentUser: null,
+      browserTabId: null,
       sessionSettings: {
         anonymousMode: false,
         showTeamsToUsers: true,
@@ -146,6 +151,54 @@ export default {
       teams: [],
       minResponses: 1
     }
+  },
+  computed: {
+    myTeam() {
+      if (!this.teams || !this.teams.length) {
+        console.log('No teams available');
+        return null;
+      }
+
+      const currentUserId = sessionStorage.getItem('currentUser');
+      console.log('Looking for team with current user:', currentUserId);
+
+      // First check if we have a valid user ID
+      if (!currentUserId) {
+        console.log('No current user ID found');
+        return null;
+      }
+
+      const team = this.teams.find(team => {
+        if (!team.members) {
+          console.log('Team has no members:', team);
+          return false;
+        }
+
+        const hasCurrentUser = team.members.some(member => {
+          if (!member || !member.id) {
+            console.log('Invalid member:', member);
+            return false;
+          }
+          const matches = member.id === currentUserId;
+          console.log('Checking member:', member.id, 'against current:', currentUserId, 'matches:', matches);
+          return matches;
+        });
+
+        console.log('Team check result:', {
+          teamMembers: team.members.map(m => m.id),
+          hasCurrentUser
+        });
+        return hasCurrentUser;
+      });
+
+      console.log('Found team:', team);
+      return team;
+    }
+  },
+  created() {
+    // Generate a unique ID for this browser tab
+    this.browserTabId = 'tab_' + Math.random().toString(36).substr(2, 9);
+    console.log('Browser tab ID:', this.browserTabId);
   },
   methods: {
     onSessionCreated({ id, admin }) {
@@ -166,14 +219,16 @@ export default {
         settingsConfirmed: this.settingsConfirmed
       });
 
-      // If not admin, fetch settings and confirm them automatically
-      if (!this.isAdmin) {
-        this.fetchSessionSettings();
-        this.settingsConfirmed = true;
-        // Start polling for both surveys and teams
-        this.pollSurveys();
-        this.pollTeams();
-      }
+      // Fetch settings for both admin and non-admin users
+      this.fetchSessionSettings().then(() => {
+        // If not admin, confirm settings automatically
+        if (!this.isAdmin) {
+          this.settingsConfirmed = true;
+          // Start polling for both surveys and teams
+          this.pollSurveys();
+          this.pollTeams();
+        }
+      });
     },
 
     onSettingsSaved(settings) {
@@ -200,7 +255,16 @@ export default {
     async saveSessionSettings() {
       try {
         console.log('Saving settings to backend:', this.sessionSettings);
-        await axios.post(`/api/session/${this.sessionId}/settings`, this.sessionSettings);
+        const settingsToSave = {
+          anonymous_mode: this.sessionSettings.anonymousMode,
+          show_teams_to_users: this.sessionSettings.showTeamsToUsers,
+          team_size: this.sessionSettings.teamSize,
+          team_approach: this.sessionSettings.teamApproach,
+          characteristics: this.sessionSettings.characteristics,
+          similarity_threshold: this.sessionSettings.similarityThreshold
+        };
+        console.log('Formatted settings for backend:', settingsToSave);
+        await axios.post(`/api/session/${this.sessionId}/settings`, settingsToSave);
       } catch (error) {
         console.error('Error saving settings:', error);
       }
@@ -210,13 +274,21 @@ export default {
       try {
         console.log('Fetching settings for session:', this.sessionId);
         const res = await axios.get(`/api/session/${this.sessionId}/settings`);
-        this.sessionSettings = res.data;
-        console.log('Settings fetched:', this.sessionSettings);
+        const s = res.data;
+        this.sessionSettings = {
+          anonymousMode: s.anonymous_mode,
+          showTeamsToUsers: s.show_teams_to_users,
+          teamSize: s.team_size,
+          teamApproach: s.team_approach,
+          characteristics: s.characteristics,
+          similarityThreshold: s.similarity_threshold
+        };
+        console.log('Settings fetched and mapped:', this.sessionSettings);
       } catch (error) {
         console.error('Error fetching settings:', error);
         // Use default settings if fetch fails
         this.sessionSettings = {
-          anonymousMode: false,
+          anonymousMode: true, // Default to true for anonymous mode
           showTeamsToUsers: true,
           teamSize: 4,
           teamApproach: "homogeni",
@@ -227,10 +299,27 @@ export default {
     },
 
     onSurveysUpdated(data) {
-      console.log('Survey updated:', data);
-      this.surveys.push(data.survey);
-      // Set the current user's name
-      this.currentUser = data.currentUser;
+      console.log('Survey updated with data:', data);
+      
+      if (this.isAdmin) {
+        this.surveys = data;
+      } else {
+        // Store the current user ID from the backend response
+        if (data.currentUser) {
+          console.log('Setting current user ID:', data.currentUser);
+          sessionStorage.setItem('currentUserId', data.currentUser);
+        }
+        
+        // Add the new survey to the list
+        if (data.survey) {
+          this.surveys.push(data.survey);
+        }
+      }
+      
+      // Generate teams if we have enough surveys
+      if (this.surveys.length >= this.sessionSettings.teamSize) {
+        this.generateTeams();
+      }
     },
 
     async pollSurveys() {
@@ -238,7 +327,10 @@ export default {
       this.surveyInterval = setInterval(async () => {
         try {
           const res = await axios.get(`/api/session/${this.sessionId}/surveys`);
-          this.surveys = res.data;
+          console.log('Polling surveys response:', res.data);
+          if (Array.isArray(res.data)) {
+            this.surveys = res.data;
+          }
         } catch (error) {
           console.error('Error polling surveys:', error);
         }
@@ -250,9 +342,25 @@ export default {
       this.teamInterval = setInterval(async () => {
         try {
           const res = await axios.get(`/api/session/${this.sessionId}/teams`);
+          console.log('Teams response:', res.data);
           if (res.data && res.data.teams) {
+            // Store the teams data
             this.teams = res.data.teams;
-            console.log('Teams updated:', this.teams);
+            
+            // Log current state for debugging
+            const currentUserId = sessionStorage.getItem('currentUser');
+            console.log('Updated teams state:', {
+              currentUserId,
+              teamsCount: this.teams.length,
+              teams: this.teams.map(t => ({
+                memberIds: t.members.map(m => m.id)
+              }))
+            });
+
+            // Force Vue to reactively update the teams
+            this.$nextTick(() => {
+              console.log('Teams updated, checking myTeam:', this.myTeam);
+            });
           }
         } catch (error) {
           console.error('Error polling teams:', error);
@@ -284,14 +392,11 @@ export default {
         if (res.data && res.data.teams) {
           this.teams = res.data.teams;
           console.log('Teams generated:', this.teams);
+          // Force Vue to reactively update the teams
+          this.$forceUpdate();
         } else {
           console.error('Invalid team data:', res.data);
         }
-        
-        // Stop polling surveys after teams are generated
-        clearInterval(this.surveyInterval);
-        // Start polling teams
-        this.pollTeams();
       } catch (error) {
         console.error('Error generating teams:', error);
         alert('Failed to generate teams. Please try again.');
@@ -311,10 +416,25 @@ export default {
     },
 
     isCurrentUser(member) {
-      if (this.sessionSettings.anonymousMode) {
+      const currentUserId = sessionStorage.getItem('currentUserId');
+      console.log('Checking current user:', { currentUserId, member });
+      
+      if (!currentUserId || !member) {
+        console.log('No current user ID or invalid member');
         return false;
       }
-      return member.name === this.currentUser;
+      
+      if (this.sessionSettings.anonymousMode) {
+        // In anonymous mode, compare user IDs directly
+        const isMatch = member.id === currentUserId;
+        console.log('Anonymous mode comparison:', { memberId: member.id, currentUserId, isMatch });
+        return isMatch;
+      } else {
+        // In named mode, compare by name
+        const isMatch = member.name === currentUserId;
+        console.log('Named mode comparison:', { memberName: member.name, currentUserId, isMatch });
+        return isMatch;
+      }
     }
   },
   beforeUnmount() {
@@ -468,6 +588,7 @@ input, select {
 
 .anonymous-user {
   font-family: monospace;
+  color: #666;
 }
 
 .teams-container {

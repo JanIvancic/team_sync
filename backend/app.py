@@ -13,7 +13,13 @@ from team_logic import make_teams
 load_dotenv()
 
 app = Flask(__name__)
-CORS(app)  # Enable CORS for all routes
+CORS(app, resources={
+    r"/api/*": {
+        "origins": ["http://localhost:8080", "http://localhost:8081"],
+        "methods": ["GET", "POST", "OPTIONS"],
+        "allow_headers": ["Content-Type"]
+    }
+})
 redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 redis_client = Redis.from_url(redis_url, decode_responses=True)
 
@@ -44,9 +50,16 @@ def submit_survey(sid):
     if not stored:
         return jsonify({"error": "Session not found"}), 404
     sess = json.loads(stored)
+    
+    # If anonymous mode is enabled, generate a random ID for the user
+    if sess["settings"]["anonymous_mode"]:
+        user_id = f"user_{len(sess['users']) + 1}"
+        data["id"] = user_id
+        data["name"] = f"User {len(sess['users']) + 1}"
+    
     sess["users"].append(data)
     redis_client.set(sid, json.dumps(sess))
-    return jsonify({"status": "ok"}), 200
+    return jsonify({"status": "ok", "user_id": data.get("id")}), 200
 
 @app.route("/api/session/<sid>/surveys", methods=["GET"])
 def get_surveys(sid):
@@ -66,6 +79,15 @@ def update_settings(sid):
     session_data["settings"].update(data)
     redis_client.set(sid, json.dumps(session_data))
     return jsonify({"status": "ok"}), 200
+
+@app.route("/api/session/<sid>/settings", methods=["GET"])
+def get_settings(sid):
+    stored = redis_client.get(sid)
+    if not stored:
+        return jsonify({"error": "Session not found"}), 404
+    
+    session_data = json.loads(stored)
+    return jsonify(session_data["settings"]), 200
 
 @app.route("/api/session/<sid>/teams", methods=["POST"])
 def generate_teams_endpoint(sid):
@@ -108,8 +130,15 @@ def generate_teams_endpoint(sid):
     for team in teams:
         team_members = []
         for member in team["members"]:
-            # Use the original member data without defaults
-            team_members.append(member)
+            # Find the original user data by matching the skills
+            original_user = next((u for u in users if all(u.get(k) == member.get(k) for k in member.keys() if k not in ['id', 'name'])), member)
+            # Preserve the original user's ID and name
+            member_with_id = {
+                'id': original_user.get('id', f'user_{len(team_members) + 1}'),
+                'name': original_user.get('name', f'User {len(team_members) + 1}'),
+                **member
+            }
+            team_members.append(member_with_id)
         formatted_teams.append({
             "members": team_members,
             "metrics": team["metrics"]
@@ -132,7 +161,11 @@ def get_teams(sid):
     for team in teams:
         team_members = []
         for member in team["members"]:
-            # Use the original member data without defaults
+            # In anonymous mode, preserve the user ID but use generic names
+            if session_data["settings"]["anonymous_mode"]:
+                member = member.copy()
+                # Only update the name, keep the ID
+                member["name"] = f"User {member.get('id', '').split('_')[1] if member.get('id') else 'Unknown'}"
             team_members.append(member)
         formatted_teams.append({
             "members": team_members,

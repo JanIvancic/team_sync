@@ -1,21 +1,20 @@
 <template>
   <div style="margin-top:20px">
-    <form @submit.prevent="submitSurvey">
-      <!-- Name field only shown when not in anonymous mode -->
+    <div v-if="submitted" class="success-message">
+      Survey submitted successfully! Thank you for your participation.
+    </div>
+    <form v-else @submit.prevent="submitSurvey">
       <div v-if="!anonymousMode" style="margin-bottom:15px">
-        <label>{{ fields[0].label }}</label>
-        <input
-          type="text"
-          v-model="survey.name"
-          :required="!anonymousMode"
-        >
+        <label for="name">Your Name:</label>
+        <input type="text" id="name" v-model="survey.name" required>
       </div>
-
-      <!-- All other fields always shown -->
-      <div v-for="field in fields.filter(f => f.key !== 'name')" :key="field.key" style="margin-bottom:15px">
+      <div v-else style="margin-bottom:15px">
+        <p class="anonymous-notice">Anonymous Mode: Your responses will be recorded without your name</p>
+      </div>
+      <div v-for="field in fields" :key="field.key" style="margin-bottom:15px">
         <label>{{ field.label }}</label>
         <component
-          :is="getComponentType(field.type)"
+          :is="field.type === 'slider' ? 'input' : 'select'"
           v-model="survey[field.key]"
           v-bind="field.props"
         >
@@ -33,30 +32,25 @@
 import axios from 'axios'
 
 export default {
+  name: 'SurveyForm',
   props: {
-    sessionId: String,
-    isAdmin: Boolean,
+    sessionId: {
+      type: String,
+      required: true
+    },
+    isAdmin: {
+      type: Boolean,
+      default: false
+    },
     anonymousMode: {
       type: Boolean,
       default: false
     }
   },
-  created() {
-    console.log('SurveyForm created with anonymousMode:', this.anonymousMode);
-    // Generate a random name for anonymous users
-    if (this.anonymousMode) {
-      this.survey.name = `Anonymous-${Math.floor(Math.random() * 10000)}`;
-      console.log('Generated anonymous name:', this.survey.name);
-    }
-  },
-  mounted() {
-    console.log('SurveyForm mounted with anonymousMode:', this.anonymousMode);
-  },
   data() {
     return {
-      hasSubmitted: false,
+      submitted: false,
       survey: {
-        name: '',
         tech_skills: 3,
         comm_skills: 3,
         creative_skills: 3,
@@ -71,7 +65,6 @@ export default {
         conflict_management: null
       },
       fields: [
-        { key: 'name', label: 'Your Name', type: 'text', props: { type: 'text', required: false } },
         { key: 'tech_skills', label: 'Tech Skills (1-5)', type: 'slider', props: { type: 'range', min:1, max:5 } },
         { key: 'comm_skills', label: 'Comm Skills (1-5)', type: 'slider', props: { type: 'range', min:1, max:5 } },
         { key: 'creative_skills', label: 'Creative Skills (1-5)', type: 'slider', props: { type: 'range', min:1, max:5 } },
@@ -109,56 +102,34 @@ export default {
       ]
     }
   },
-  watch: {
-    anonymousMode(newVal) {
-      console.log('anonymousMode changed to:', newVal);
-    }
-  },
-  computed: {
-    visibleFields() {
-      // Filter out the name field if in anonymous mode
-      console.log('Anonymous mode:', this.anonymousMode);
-      const result = this.anonymousMode
-        ? this.fields.filter(field => field.key !== 'name')
-        : this.fields;
-      console.log('Visible fields:', result.map(f => f.key));
-      return result;
+  mounted() {
+    console.log('SurveyForm mounted with anonymousMode:', this.anonymousMode);
+    // Initialize name field only if not in anonymous mode
+    if (!this.anonymousMode) {
+      this.survey.name = '';
     }
   },
   methods: {
-    getComponentType(type) {
-      // Return the appropriate component type based on the field type
-      switch(type) {
-        case 'text':
-          return 'input';
-        case 'slider':
-          return 'input';
-        case 'select':
-          return 'select';
-        default:
-          return 'input';
-      }
-    },
     async submitSurvey() {
-      if (this.hasSubmitted) {
-        alert('You have already submitted a survey for this session.');
-        return;
-      }
-
       try {
-        console.log('Submitting survey:', this.survey);
-        await axios.post(`/api/session/${this.sessionId}/survey`, this.survey);
-        this.hasSubmitted = true;
-        // Emit both the survey data and the current user's name
-        this.$emit('surveys-updated', {
-          survey: this.survey,
-          currentUser: this.survey.name
-        });
-        alert('Survey submitted successfully!');
+        const response = await axios.post(`/api/session/${this.sessionId}/survey`, this.survey);
+        
+        this.$emit('surveys-updated', response.data);
+        this.submitted = true;
+        
+        // Store in sessionStorage that this user has submitted
+        sessionStorage.setItem(`survey_submitted_${this.sessionId}`, 'true');
+        
       } catch (error) {
         console.error('Error submitting survey:', error);
         alert('Failed to submit survey. Please try again.');
       }
+    }
+  },
+  created() {
+    // Check if user has already submitted a survey for this session
+    if (sessionStorage.getItem(`survey_submitted_${this.sessionId}`) === 'true') {
+      this.submitted = true;
     }
   }
 }
@@ -188,6 +159,13 @@ input[type="range"] {
   width: 100%;
 }
 
+input[type="text"] {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
 select {
   width: 100%;
   padding: 8px;
@@ -196,5 +174,30 @@ select {
 button {
   align-self: center;
   margin-top: 20px;
+  background-color: #4CAF50;
+  color: white;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.anonymous-notice {
+  padding: 10px;
+  background-color: #f8f9fa;
+  border-radius: 4px;
+  color: #666;
+  font-style: italic;
+  text-align: center;
+}
+
+.success-message {
+  padding: 20px;
+  background-color: #dff0d8;
+  color: #3c763d;
+  border-radius: 4px;
+  text-align: center;
+  margin-bottom: 20px;
+  border: 1px solid #d6e9c6;
 }
 </style>
