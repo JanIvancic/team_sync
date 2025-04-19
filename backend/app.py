@@ -40,8 +40,9 @@ CORS(app, resources={
 
 # Try to connect to Redis, fall back to in-memory storage if not available
 try:
-    redis_client = Redis(host='localhost', port=6379, db=0)
-    print("Connected to Redis")
+    redis_url = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
+    redis_client = Redis.from_url(redis_url)
+    print(f"Connected to Redis at {redis_url}")
 except Exception as e:
     print(f"Failed to connect to Redis: {e}")
     print("Falling back to in-memory storage")
