@@ -108,7 +108,8 @@ def set_session(sid, data):
         sessions[sid] = data
 
 def generate_session_id():
-    return ''.join(random.choices('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ', k=6))
+    """Generate a 6-digit session ID."""
+    return ''.join(random.choices('0123456789', k=6))
 
 @app.route("/")
 def serve():
@@ -121,7 +122,11 @@ def serve_static(path):
 @app.route("/api/session", methods=["POST"])
 def create_session():
     try:
-        session_id = str(uuid.uuid4())
+        session_id = generate_session_id()
+        # Keep generating until we get a unique ID
+        while get_redis_key(f'session:{session_id}'):
+            session_id = generate_session_id()
+            
         data = {
             'id': session_id,
             'created_at': datetime.now().isoformat(),
@@ -129,6 +134,7 @@ def create_session():
             'teams': [],
             'settings': {
                 'anonymous_mode': False,
+                'show_teams_to_users': True,
                 'team_size': 4
             }
         }
@@ -176,33 +182,42 @@ def generate_teams(session_id):
     set_redis_key(f'session:{session_id}', json.dumps(session_data))
     return jsonify(session_data)
 
-@app.route("/api/session/<session_id>/settings", methods=["PUT"])
-def update_settings(session_id):
-    data = request.json
-    session_data = get_redis_key(f'session:{session_id}')
-    if not session_data:
-        return jsonify({'error': 'Session not found'}), 404
+@app.route("/api/session/<session_id>/settings", methods=["GET", "PUT", "POST"])
+def handle_settings(session_id):
+    if request.method == "GET":
+        session_data = get_redis_key(f'session:{session_id}')
+        if not session_data:
+            return jsonify({"error": "Session not found"}), 404
+        
+        session_data = json.loads(session_data)
+        return jsonify(session_data.get("settings", {})), 200
     
-    session_data = json.loads(session_data)
-    session_data['settings'].update(data)
-    set_redis_key(f'session:{session_id}', json.dumps(session_data))
-    return jsonify(session_data)
+    elif request.method in ["PUT", "POST"]:
+        data = request.json
+        session_data = get_redis_key(f'session:{session_id}')
+        if not session_data:
+            return jsonify({'error': 'Session not found'}), 404
+        
+        session_data = json.loads(session_data)
+        session_data['settings'].update({
+            'anonymous_mode': data.get('anonymous_mode', False),
+            'show_teams_to_users': data.get('show_teams_to_users', True),
+            'team_size': data.get('team_size', 4),
+            'team_approach': data.get('team_approach', 'homogeni'),
+            'characteristics': data.get('characteristics', ["tech_skills", "comm_skills", "creative_skills", "leadership_skills"]),
+            'similarity_threshold': data.get('similarity_threshold', 50)
+        })
+        set_redis_key(f'session:{session_id}', json.dumps(session_data))
+        return jsonify(session_data)
 
 @app.route("/api/session/<sid>/surveys", methods=["GET"])
 def get_surveys(sid):
-    sess = get_session(sid)
-    if not sess:
-        return jsonify({"error": "Session not found"}), 404
-    return jsonify(sess["users"]), 200
-
-@app.route("/api/session/<sid>/settings", methods=["GET"])
-def get_settings(sid):
     session_data = get_redis_key(f'session:{sid}')
     if not session_data:
         return jsonify({"error": "Session not found"}), 404
     
     session_data = json.loads(session_data)
-    return jsonify(session_data.get("settings", {})), 200
+    return jsonify(session_data.get("surveys", [])), 200
 
 @app.route("/api/session/<sid>/teams", methods=["GET"])
 def get_teams(sid):
