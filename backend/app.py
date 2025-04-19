@@ -281,13 +281,23 @@ def get_teams(session_id):
         for i, team in enumerate(teams):
             formatted_team = []
             for j, member in enumerate(team):
-                if anonymous_mode:
+                # Handle case where member might be a string
+                if isinstance(member, str):
+                    member_id = member
+                    member_name = f'Member {j+1}' if anonymous_mode else member
                     formatted_team.append({
-                        'id': member['id'],
-                        'name': f'Member {j+1}'
+                        'id': member_id,
+                        'name': member_name
                     })
                 else:
-                    formatted_team.append(member)
+                    # Handle case where member is a dictionary
+                    if anonymous_mode:
+                        formatted_team.append({
+                            'id': member.get('id', f'user_{j}'),
+                            'name': f'Member {j+1}'
+                        })
+                    else:
+                        formatted_team.append(member)
             formatted_teams.append(formatted_team)
             
         return jsonify(formatted_teams)
