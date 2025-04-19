@@ -6,7 +6,7 @@
     <form v-else @submit.prevent="submitSurvey">
       <div v-if="!anonymousMode" style="margin-bottom:15px">
         <label for="name">Your Name:</label>
-        <input type="text" id="name" v-model="survey.name" required>
+        <input type="text" id="name" v-model="survey.name" :required="!anonymousMode">
       </div>
       <div v-else style="margin-bottom:15px">
         <p class="anonymous-notice">Anonymous Mode: Your responses will be recorded without your name</p>
