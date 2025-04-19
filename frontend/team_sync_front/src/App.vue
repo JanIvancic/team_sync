@@ -87,16 +87,17 @@
       />
 
       <div v-if="teams.length && sessionSettings.showTeamsToUsers" class="teams-container">
-        <h2>Teams</h2>
+        <h2>Generated Teams</h2>
         <div class="teams-list">
           <div 
-            v-if="myTeam" 
+            v-for="(team, index) in teams" 
+            :key="index" 
             class="team-card"
           >
-            <h3>Team {{ teams.indexOf(myTeam) + 1 }}</h3>
+            <h3>Team {{ index + 1 }}</h3>
             <ul>
               <li 
-                v-for="(member, idx) in myTeam.members" 
+                v-for="(member, idx) in team.members" 
                 :key="member.id"
                 :class="{ 
                   'current-user': isCurrentUser(member),
@@ -308,6 +309,8 @@ export default {
         if (data.currentUser) {
           console.log('Setting current user ID:', data.currentUser);
           sessionStorage.setItem('currentUserId', data.currentUser);
+          // Also store it in the component's data for easier access
+          this.currentUser = data.currentUser;
         }
         
         // Add the new survey to the list
@@ -348,7 +351,7 @@ export default {
             this.teams = res.data.teams;
             
             // Log current state for debugging
-            const currentUserId = sessionStorage.getItem('currentUser');
+            const currentUserId = sessionStorage.getItem('currentUserId');
             console.log('Updated teams state:', {
               currentUserId,
               teamsCount: this.teams.length,
@@ -417,7 +420,12 @@ export default {
 
     isCurrentUser(member) {
       const currentUserId = sessionStorage.getItem('currentUserId');
-      console.log('Checking current user:', { currentUserId, member });
+      console.log('Checking current user:', { 
+        currentUserId, 
+        memberId: member?.id, 
+        memberName: member?.name,
+        anonymousMode: this.sessionSettings.anonymousMode 
+      });
       
       if (!currentUserId || !member) {
         console.log('No current user ID or invalid member');
@@ -427,12 +435,20 @@ export default {
       if (this.sessionSettings.anonymousMode) {
         // In anonymous mode, compare user IDs directly
         const isMatch = member.id === currentUserId;
-        console.log('Anonymous mode comparison:', { memberId: member.id, currentUserId, isMatch });
+        console.log('Anonymous mode comparison:', { 
+          memberId: member.id, 
+          currentUserId, 
+          isMatch 
+        });
         return isMatch;
       } else {
         // In named mode, compare by name
         const isMatch = member.name === currentUserId;
-        console.log('Named mode comparison:', { memberName: member.name, currentUserId, isMatch });
+        console.log('Named mode comparison:', { 
+          memberName: member.name, 
+          currentUserId, 
+          isMatch 
+        });
         return isMatch;
       }
     }
