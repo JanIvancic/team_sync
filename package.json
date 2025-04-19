@@ -9,10 +9,7 @@
     "start": "gunicorn app:app"
   },
   "engines": {
-    "node": ">=14.0.0",
-    "npm": ">=6.0.0"
-  },
-  "dependencies": {
-    "gunicorn": "^20.1.0"
+    "node": "14.21.3",
+    "npm": "6.14.18"
   }
 } 
