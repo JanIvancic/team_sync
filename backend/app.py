@@ -8,7 +8,7 @@ from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 from redis import Redis
 from dotenv import load_dotenv
-from .team_logic import make_teams
+from team_logic import make_teams
 import numpy as np
 from datetime import datetime
 from whitenoise import WhiteNoise
@@ -54,26 +54,26 @@ except Exception as e:
 
 def get_session(sid):
     if redis_client:
-        try:
-            stored = redis_client.get(sid)
-            return json.loads(stored) if stored else None
-        except Exception as e:
-            print(f"Redis error: {e}")
-            return session_storage.get(sid)
+        data = redis_client.get(f"session:{sid}")
+        return json.loads(data) if data else None
     return session_storage.get(sid)
 
 def set_session(sid, data):
     if redis_client:
-        try:
-            redis_client.set(sid, json.dumps(data))
-        except Exception as e:
-            print(f"Redis error: {e}")
-            session_storage[sid] = data
+        redis_client.set(f"session:{sid}", json.dumps(data))
     else:
         session_storage[sid] = data
 
 def generate_session_id():
-    return str(random.randint(100000, 999999))
+    return ''.join(random.choices('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ', k=6))
+
+@app.route("/")
+def serve():
+    return send_from_directory(static_folder, 'index.html')
+
+@app.route("/<path:path>")
+def serve_static(path):
+    return send_from_directory(static_folder, path)
 
 @app.route("/api/session", methods=["POST"])
 def create_session():
@@ -228,34 +228,6 @@ def debug():
         'root_path': app.root_path,
         'instance_path': app.instance_path
     })
-
-# Serve static files and SPA routes
-@app.route('/')
-def root():
-    try:
-        print(f"Serving index.html from {app.static_folder}")
-        if not os.path.exists(os.path.join(app.static_folder, 'index.html')):
-            print(f"index.html not found in {app.static_folder}")
-            return jsonify({'error': 'index.html not found'}), 404
-        return send_from_directory(app.static_folder, 'index.html')
-    except Exception as e:
-        print(f"Error serving index.html: {str(e)}")
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/<path:path>')
-def serve_static(path):
-    try:
-        print(f"Requested path: {path}")
-        full_path = os.path.join(app.static_folder, path)
-        print(f"Full path: {full_path}")
-        print(f"Path exists: {os.path.exists(full_path)}")
-        
-        if os.path.exists(full_path):
-            return send_from_directory(app.static_folder, path)
-        return send_from_directory(app.static_folder, 'index.html')
-    except Exception as e:
-        print(f"Error serving {path}: {str(e)}")
-        return jsonify({'error': str(e)}), 500
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
