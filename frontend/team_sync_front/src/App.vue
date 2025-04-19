@@ -361,10 +361,29 @@ export default {
         });
         
         if (res.data && res.data.teams) {
-          this.teams = res.data.teams;
+          // Transform the teams data to ensure it has the correct structure
+          this.teams = res.data.teams.map(team => {
+            // If team is already an array of members, wrap it in a members property
+            if (Array.isArray(team)) {
+              return {
+                members: team.map((member, index) => ({
+                  id: member.id || `member-${index}`,
+                  name: this.sessionSettings.anonymousMode ? `Member ${index + 1}` : (member.name || `Member ${index + 1}`)
+                }))
+              };
+            }
+            // If team is an object with members array, ensure each member has required properties
+            if (team.members) {
+              return {
+                members: team.members.map((member, index) => ({
+                  id: member.id || `member-${index}`,
+                  name: this.sessionSettings.anonymousMode ? `Member ${index + 1}` : (member.name || `Member ${index + 1}`)
+                }))
+              };
+            }
+            return team;
+          });
           console.log('Teams generated:', this.teams);
-          // Force Vue to reactively update the teams
-          this.$forceUpdate();
         } else {
           console.error('Invalid team data:', res.data);
         }
