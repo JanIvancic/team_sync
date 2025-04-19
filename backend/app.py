@@ -34,8 +34,13 @@ app.wsgi_app = WhiteNoise(app.wsgi_app, root=static_folder)
 # Configure CORS with Heroku domain
 CORS(app, resources={
     r"/api/*": {
-        "origins": ["http://localhost:8080", "http://localhost:8081", "https://team-sync-app-8aa47d5c9ba6.herokuapp.com"],
-        "methods": ["GET", "POST", "OPTIONS"],
+        "origins": [
+            "http://localhost:8080",
+            "http://localhost:8081",
+            "https://team-sync-app.herokuapp.com",
+            "https://team-sync-app-8aa47d5c9ba6.herokuapp.com"
+        ],
+        "methods": ["GET", "POST", "PUT", "OPTIONS"],
         "allow_headers": ["Content-Type"]
     }
 })
@@ -192,11 +197,12 @@ def get_surveys(sid):
 
 @app.route("/api/session/<sid>/settings", methods=["GET"])
 def get_settings(sid):
-    sess = get_session(sid)
-    if not sess:
+    session_data = get_redis_key(f'session:{sid}')
+    if not session_data:
         return jsonify({"error": "Session not found"}), 404
     
-    return jsonify(sess["settings"]), 200
+    session_data = json.loads(session_data)
+    return jsonify(session_data.get("settings", {})), 200
 
 @app.route("/api/session/<sid>/teams", methods=["GET"])
 def get_teams(sid):
