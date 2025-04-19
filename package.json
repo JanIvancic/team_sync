@@ -2,12 +2,20 @@
   "name": "team_sync",
   "version": "1.0.0",
   "description": "Team formation application",
+  "main": "index.js",
   "scripts": {
     "build": "cd frontend/team_sync_front && npm install --legacy-peer-deps && npm run build && cd ../.. && mkdir -p static && cp -r frontend/team_sync_front/dist/* static/",
     "start": "python backend/app.py"
   },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
   "engines": {
     "node": "18.x",
     "npm": "9.x"
+  },
+  "dependencies": {
+    "@vue/cli-service": "^5.0.8",
+    "vue": "^3.0.0"
   }
 } 
