@@ -23,6 +23,9 @@
     "@vue/compiler-sfc": "^3.0.0",
     "vue": "^3.0.0",
     "vue-router": "^4.0.0-0",
-    "vuex": "^4.0.0-0"
+    "vuex": "^4.0.0-0",
+    "eslint-plugin-vue": "^8.0.3",
+    "eslint": "^7.32.0",
+    "@babel/eslint-parser": "^7.12.16"
   }
 } 
