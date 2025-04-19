@@ -13,6 +13,8 @@ import numpy as np
 from datetime import datetime, timedelta
 from whitenoise import WhiteNoise
 import uuid
+import sys
+import traceback
 
 load_dotenv()
 
@@ -40,11 +42,15 @@ CORS(app, resources={
 
 # Try to connect to Redis, fall back to in-memory storage if not available
 try:
-    redis_url = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
+    redis_url = os.environ.get('REDISCLOUD_URL') or os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
+    print(f"Attempting to connect to Redis at {redis_url}")
     redis_client = Redis.from_url(redis_url)
-    print(f"Connected to Redis at {redis_url}")
+    # Test the connection
+    redis_client.ping()
+    print("Successfully connected to Redis")
 except Exception as e:
-    print(f"Failed to connect to Redis: {e}")
+    print(f"Failed to connect to Redis: {str(e)}")
+    print("Full error:", traceback.format_exc())
     print("Falling back to in-memory storage")
     redis_client = None
 
@@ -57,12 +63,19 @@ def get_redis_key(key):
     return sessions.get(key)
 
 def set_redis_key(key, value, expire_seconds=None):
-    if redis_client:
-        if expire_seconds:
-            redis_client.setex(key, expire_seconds, value)
+    try:
+        if redis_client:
+            if expire_seconds:
+                redis_client.setex(key, expire_seconds, value)
+            else:
+                redis_client.set(key, value)
+            print(f"Successfully set Redis key: {key}")
         else:
-            redis_client.set(key, value)
-    else:
+            sessions[key] = value
+            print(f"Stored in memory: {key}")
+    except Exception as e:
+        print(f"Error setting Redis key {key}: {str(e)}")
+        print("Full error:", traceback.format_exc())
         sessions[key] = value
 
 def delete_redis_key(key):
@@ -96,19 +109,25 @@ def serve_static(path):
 
 @app.route("/api/session", methods=["POST"])
 def create_session():
-    session_id = str(uuid.uuid4())
-    data = {
-        'id': session_id,
-        'created_at': datetime.now().isoformat(),
-        'surveys': [],
-        'teams': [],
-        'settings': {
-            'anonymous_mode': False,
-            'team_size': 4
+    try:
+        session_id = str(uuid.uuid4())
+        data = {
+            'id': session_id,
+            'created_at': datetime.now().isoformat(),
+            'surveys': [],
+            'teams': [],
+            'settings': {
+                'anonymous_mode': False,
+                'team_size': 4
+            }
         }
-    }
-    set_redis_key(f'session:{session_id}', json.dumps(data))
-    return jsonify(data)
+        print(f"Creating new session with ID: {session_id}")
+        set_redis_key(f'session:{session_id}', json.dumps(data))
+        return jsonify(data)
+    except Exception as e:
+        print(f"Error creating session: {str(e)}")
+        print("Full error:", traceback.format_exc())
+        return jsonify({'error': str(e)}), 500
 
 @app.route("/api/session/<session_id>", methods=["GET"])
 def get_session(session_id):
