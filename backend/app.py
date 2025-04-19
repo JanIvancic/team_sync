@@ -11,14 +11,22 @@ from dotenv import load_dotenv
 from .team_logic import make_teams
 import numpy as np
 from datetime import datetime
+from whitenoise import WhiteNoise
 
 load_dotenv()
 
 # Get the absolute path for static files
-static_folder = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'frontend', 'team_sync_front', 'dist')
+root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+static_folder = os.path.join(root_dir, 'frontend', 'team_sync_front', 'dist')
+print(f"Root directory: {root_dir}")
 print(f"Static folder path: {static_folder}")
+print(f"Static folder exists: {os.path.exists(static_folder)}")
+if os.path.exists(static_folder):
+    print(f"Static folder contents: {os.listdir(static_folder)}")
 
 app = Flask(__name__, static_folder=static_folder, static_url_path='')
+# Add Whitenoise for static files
+app.wsgi_app = WhiteNoise(app.wsgi_app, root=static_folder)
 
 # Configure CORS with Heroku domain
 CORS(app, resources={
@@ -210,16 +218,44 @@ def get_teams(sid):
     
     return jsonify({"teams": formatted_teams}), 200
 
+# Debug route to check application status
+@app.route('/debug')
+def debug():
+    return jsonify({
+        'static_folder': app.static_folder,
+        'static_folder_exists': os.path.exists(app.static_folder),
+        'static_folder_contents': os.listdir(app.static_folder) if os.path.exists(app.static_folder) else [],
+        'root_path': app.root_path,
+        'instance_path': app.instance_path
+    })
+
 # Serve static files and SPA routes
 @app.route('/')
 def root():
-    return send_from_directory(app.static_folder, 'index.html')
+    try:
+        print(f"Serving index.html from {app.static_folder}")
+        if not os.path.exists(os.path.join(app.static_folder, 'index.html')):
+            print(f"index.html not found in {app.static_folder}")
+            return jsonify({'error': 'index.html not found'}), 404
+        return send_from_directory(app.static_folder, 'index.html')
+    except Exception as e:
+        print(f"Error serving index.html: {str(e)}")
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/<path:path>')
 def serve_static(path):
-    if os.path.exists(os.path.join(app.static_folder, path)):
-        return send_from_directory(app.static_folder, path)
-    return send_from_directory(app.static_folder, 'index.html')
+    try:
+        print(f"Requested path: {path}")
+        full_path = os.path.join(app.static_folder, path)
+        print(f"Full path: {full_path}")
+        print(f"Path exists: {os.path.exists(full_path)}")
+        
+        if os.path.exists(full_path):
+            return send_from_directory(app.static_folder, path)
+        return send_from_directory(app.static_folder, 'index.html')
+    except Exception as e:
+        print(f"Error serving {path}: {str(e)}")
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
