@@ -14,6 +14,10 @@ export default {
     teams: {
       type: Array,
       required: true
+    },
+    anonymousMode: {
+      type: Boolean,
+      default: false
     }
   },
   data() {
@@ -26,6 +30,10 @@ export default {
   },
   mounted() {
     this.initGraph();
+    window.addEventListener('resize', this.handleResize);
+  },
+  beforeDestroy() {
+    window.removeEventListener('resize', this.handleResize);
   },
   watch: {
     teams: {
@@ -34,6 +42,11 @@ export default {
     }
   },
   methods: {
+    handleResize() {
+      this.width = this.$refs.graphContainer.clientWidth;
+      this.height = this.$refs.graphContainer.clientHeight;
+      this.initGraph();
+    },
     initGraph() {
       // Clear any existing graph
       if (this.svg) {
@@ -69,11 +82,12 @@ export default {
 
       // Create nodes and links for each team
       this.teams.forEach((team, teamIndex) => {
-        team.members.forEach((member, memberIndex) => {
+        // Each team is already an array of members
+        team.forEach((member, memberIndex) => {
           const nodeId = `${teamIndex}-${memberIndex}`;
           const node = {
             id: nodeId,
-            name: member.name,
+            name: this.anonymousMode ? `Member ${memberIndex + 1}` : (member.name || `Member ${memberIndex + 1}`),
             team: teamIndex,
             x: Math.random() * this.width,
             y: Math.random() * this.height
@@ -106,7 +120,7 @@ export default {
 
       // Create nodes
       const node = this.svg.append('g')
-        .selectAll('circle')
+        .selectAll('g')
         .data(nodes)
         .enter()
         .append('g')
@@ -117,16 +131,20 @@ export default {
 
       // Add circles to nodes
       node.append('circle')
-        .attr('r', 20)
-        .attr('fill', d => d3.schemeCategory10[d.team % 10]);
+        .attr('r', 25)
+        .attr('fill', d => d3.schemeCategory10[d.team % 10])
+        .attr('stroke', '#fff')
+        .attr('stroke-width', 2);
 
       // Add text labels
       node.append('text')
         .text(d => d.name)
         .attr('x', 0)
-        .attr('y', 30)
+        .attr('y', 35)
         .attr('text-anchor', 'middle')
-        .style('font-size', '12px');
+        .style('font-size', '14px')
+        .style('font-weight', 'bold')
+        .style('fill', '#333');
 
       // Update simulation
       this.simulation
@@ -181,5 +199,11 @@ export default {
 svg {
   width: 100%;
   height: 100%;
+}
+
+@media (max-width: 768px) {
+  .graph-container {
+    height: 400px;
+  }
 }
 </style>
