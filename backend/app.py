@@ -8,13 +8,18 @@ from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 from redis import Redis
 from dotenv import load_dotenv
-from team_logic import make_teams
+from .team_logic import make_teams
 import numpy as np
 from datetime import datetime
 
 load_dotenv()
 
-app = Flask(__name__, static_folder='../frontend/team_sync_front/dist')
+# Get the absolute path for static files
+static_folder = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'frontend', 'team_sync_front', 'dist')
+
+app = Flask(__name__, static_folder=static_folder)
+
+# Configure CORS with Heroku domain
 CORS(app, resources={
     r"/api/*": {
         "origins": ["http://localhost:8080", "http://localhost:8081", "https://team-sync-app-2028a22681a2.herokuapp.com"],
@@ -23,9 +28,40 @@ CORS(app, resources={
     }
 })
 
-# Use Heroku Redis URL if available, otherwise use local Redis
-redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-redis_client = Redis.from_url(redis_url, decode_responses=True)
+# Initialize in-memory storage as fallback
+session_storage = {}
+
+# Configure Redis with fallback to in-memory storage
+try:
+    redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+    redis_client = Redis.from_url(redis_url, decode_responses=True)
+    # Test Redis connection
+    redis_client.ping()
+    print("Successfully connected to Redis")
+except Exception as e:
+    print(f"Failed to connect to Redis: {e}")
+    print("Falling back to in-memory storage")
+    redis_client = None
+
+def get_session(sid):
+    if redis_client:
+        try:
+            stored = redis_client.get(sid)
+            return json.loads(stored) if stored else None
+        except Exception as e:
+            print(f"Redis error: {e}")
+            return session_storage.get(sid)
+    return session_storage.get(sid)
+
+def set_session(sid, data):
+    if redis_client:
+        try:
+            redis_client.set(sid, json.dumps(data))
+        except Exception as e:
+            print(f"Redis error: {e}")
+            session_storage[sid] = data
+    else:
+        session_storage[sid] = data
 
 def generate_session_id():
     return str(random.randint(100000, 999999))
@@ -33,7 +69,7 @@ def generate_session_id():
 @app.route("/api/session", methods=["POST"])
 def create_session():
     sid = generate_session_id()
-    redis_client.set(sid, json.dumps({
+    set_session(sid, {
         "session_id": sid, 
         "users": [],
         "settings": {
@@ -44,16 +80,15 @@ def create_session():
             "characteristics": ["tech_skills", "comm_skills", "creative_skills", "leadership_skills"],
             "similarity_threshold": 50
         }
-    }))
+    })
     return jsonify({"session_id": sid}), 201
 
 @app.route("/api/session/<sid>/survey", methods=["POST"])
 def submit_survey(sid):
     data = request.json
-    stored = redis_client.get(sid)
-    if not stored:
+    sess = get_session(sid)
+    if not sess:
         return jsonify({"error": "Session not found"}), 404
-    sess = json.loads(stored)
     
     # If anonymous mode is enabled, generate a random ID for the user
     if sess["settings"]["anonymous_mode"]:
@@ -62,45 +97,42 @@ def submit_survey(sid):
         data["name"] = f"User {len(sess['users']) + 1}"
     
     sess["users"].append(data)
-    redis_client.set(sid, json.dumps(sess))
+    set_session(sid, sess)
     return jsonify({"status": "ok", "user_id": data.get("id")}), 200
 
 @app.route("/api/session/<sid>/surveys", methods=["GET"])
 def get_surveys(sid):
-    stored = redis_client.get(sid)
-    if not stored:
+    sess = get_session(sid)
+    if not sess:
         return jsonify({"error": "Session not found"}), 404
-    return jsonify(json.loads(stored)["users"]), 200
+    return jsonify(sess["users"]), 200
 
 @app.route("/api/session/<sid>/settings", methods=["POST"])
 def update_settings(sid):
     data = request.json
-    stored = redis_client.get(sid)
-    if not stored:
+    sess = get_session(sid)
+    if not sess:
         return jsonify({"error": "Session not found"}), 404
     
-    session_data = json.loads(stored)
-    session_data["settings"].update(data)
-    redis_client.set(sid, json.dumps(session_data))
+    sess["settings"].update(data)
+    set_session(sid, sess)
     return jsonify({"status": "ok"}), 200
 
 @app.route("/api/session/<sid>/settings", methods=["GET"])
 def get_settings(sid):
-    stored = redis_client.get(sid)
-    if not stored:
+    sess = get_session(sid)
+    if not sess:
         return jsonify({"error": "Session not found"}), 404
     
-    session_data = json.loads(stored)
-    return jsonify(session_data["settings"]), 200
+    return jsonify(sess["settings"]), 200
 
 @app.route("/api/session/<sid>/teams", methods=["POST"])
 def generate_teams_endpoint(sid):
-    stored = redis_client.get(sid)
-    if not stored:
+    sess = get_session(sid)
+    if not sess:
         return jsonify({"error": "Session not found"}), 404
     
-    session_data = json.loads(stored)
-    users = session_data["users"]
+    users = sess["users"]
     request_data = request.json
     
     if len(users) < 2:
@@ -114,7 +146,7 @@ def generate_teams_endpoint(sid):
     df = pd.DataFrame(users)
     
     # Use settings from request if provided, otherwise use stored settings
-    settings = request_data.get('settings', session_data["settings"])
+    settings = request_data.get('settings', sess["settings"])
     
     # Form teams based on settings
     teams = make_teams(
@@ -126,8 +158,8 @@ def generate_teams_endpoint(sid):
     )
     
     # Store teams in session data
-    session_data["teams"] = teams
-    redis_client.set(sid, json.dumps(session_data))
+    sess["teams"] = teams
+    set_session(sid, sess)
     
     # Format teams for response
     formatted_teams = []
@@ -153,12 +185,11 @@ def generate_teams_endpoint(sid):
 
 @app.route("/api/session/<sid>/teams", methods=["GET"])
 def get_teams(sid):
-    stored = redis_client.get(sid)
-    if not stored:
+    sess = get_session(sid)
+    if not sess:
         return jsonify({"error": "Session not found"}), 404
     
-    session_data = json.loads(stored)
-    teams = session_data.get("teams", [])
+    teams = sess.get("teams", [])
     
     # Format teams for response
     formatted_teams = []
@@ -166,7 +197,7 @@ def get_teams(sid):
         team_members = []
         for member in team["members"]:
             # In anonymous mode, preserve the user ID but use generic names
-            if session_data["settings"]["anonymous_mode"]:
+            if sess["settings"]["anonymous_mode"]:
                 member = member.copy()
                 # Only update the name, keep the ID
                 member["name"] = f"User {member.get('id', '').split('_')[1] if member.get('id') else 'Unknown'}"
