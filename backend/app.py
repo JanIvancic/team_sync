@@ -42,12 +42,16 @@ CORS(app, resources={
 
 # Try to connect to Redis, fall back to in-memory storage if not available
 try:
-    redis_url = os.environ.get('REDISCLOUD_URL') or os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
-    print(f"Attempting to connect to Redis at {redis_url}")
-    redis_client = Redis.from_url(redis_url)
-    # Test the connection
-    redis_client.ping()
-    print("Successfully connected to Redis")
+    redis_url = os.environ.get('REDISCLOUD_URL')
+    if not redis_url:
+        print("No REDISCLOUD_URL found, falling back to in-memory storage")
+        redis_client = None
+    else:
+        print(f"Attempting to connect to Redis Cloud at {redis_url}")
+        redis_client = Redis.from_url(redis_url)
+        # Test the connection
+        redis_client.ping()
+        print("Successfully connected to Redis Cloud")
 except Exception as e:
     print(f"Failed to connect to Redis: {str(e)}")
     print("Full error:", traceback.format_exc())
@@ -76,7 +80,9 @@ def set_redis_key(key, value, expire_seconds=None):
     except Exception as e:
         print(f"Error setting Redis key {key}: {str(e)}")
         print("Full error:", traceback.format_exc())
+        # Fall back to in-memory storage
         sessions[key] = value
+        print(f"Fallback: Stored in memory: {key}")
 
 def delete_redis_key(key):
     if redis_client:
