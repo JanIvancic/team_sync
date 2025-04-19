@@ -3,10 +3,9 @@
 # Install dependencies
 cd frontend/team_sync_front
 npm install
-npm install -g @vue/cli
 
-# Build the Vue app
-npm run build
+# Build the Vue app using local vue-cli-service
+./node_modules/.bin/vue-cli-service build
 
 # Move the built files to the static directory
 cd ../..
