@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "serve": "esbuild src/main.js --bundle --outfile=dist/bundle.js --servedir=dist",
-    "build": "esbuild src/main.js --bundle --outfile=dist/bundle.js --minify",
+    "build": "node build.js",
     "preview": "esbuild src/main.js --bundle --outfile=dist/bundle.js --servedir=dist"
   },
   "dependencies": {
@@ -13,7 +13,8 @@
     "vue": "^3.0.0",
     "vue-router": "^4.0.0-0",
     "vuex": "^4.0.0-0",
-    "esbuild": "^0.19.0"
+    "esbuild": "^0.19.0",
+    "esbuild-plugin-vue3": "^0.3.0"
   },
   "devDependencies": {
     "vite": "^4.0.0"
