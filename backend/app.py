@@ -16,13 +16,14 @@ load_dotenv()
 
 # Get the absolute path for static files
 static_folder = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'frontend', 'team_sync_front', 'dist')
+print(f"Static folder path: {static_folder}")
 
-app = Flask(__name__, static_folder=static_folder)
+app = Flask(__name__, static_folder=static_folder, static_url_path='')
 
 # Configure CORS with Heroku domain
 CORS(app, resources={
     r"/api/*": {
-        "origins": ["http://localhost:8080", "http://localhost:8081", "https://team-sync-app-2028a22681a2.herokuapp.com"],
+        "origins": ["http://localhost:8080", "http://localhost:8081", "https://team-sync-app-8aa47d5c9ba6.herokuapp.com"],
         "methods": ["GET", "POST", "OPTIONS"],
         "allow_headers": ["Content-Type"]
     }
@@ -213,7 +214,7 @@ def get_teams(sid):
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
 def serve(path):
-    if path != "" and os.path.exists(app.static_folder + '/' + path):
+    if path and os.path.exists(os.path.join(app.static_folder, path)):
         return send_from_directory(app.static_folder, path)
     else:
         return send_from_directory(app.static_folder, 'index.html')
