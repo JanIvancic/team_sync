@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Team formation application",
   "scripts": {
-    "build": "call build.bat",
+    "build": "sh build.sh",
     "start": "python backend/app.py"
   },
   "engines": {
