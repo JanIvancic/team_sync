@@ -164,9 +164,16 @@ def submit_survey(session_id):
         
         session_data = json.loads(session_data)
         
+        # Check if session is in anonymous mode
+        is_anonymous = session_data.get('settings', {}).get('anonymous_mode', False)
+        
         # Generate a unique ID for this survey if not provided
         if 'id' not in data:
             data['id'] = f'user_{len(session_data["surveys"])}'
+            
+        # In anonymous mode, ensure we have a name for the backend
+        if is_anonymous and 'name' not in data:
+            data['name'] = f'Anonymous User {data["id"]}'
             
         # Add timestamp if not present
         if 'timestamp' not in data:
@@ -178,7 +185,8 @@ def submit_survey(session_id):
         # Return the updated survey with its ID
         return jsonify({
             'survey': data,
-            'surveys': session_data['surveys']
+            'surveys': session_data['surveys'],
+            'currentUser': data['id']
         })
     except Exception as e:
         print(f"Error submitting survey: {str(e)}")
