@@ -112,7 +112,29 @@ export default {
   methods: {
     async submitSurvey() {
       try {
+        // Generate a unique user ID if in anonymous mode
+        if (this.anonymousMode) {
+          const userId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+          this.survey.id = userId;
+          sessionStorage.setItem('currentUserId', userId);
+        } else if (this.survey.name) {
+          // In named mode, use the name as the ID
+          this.survey.id = this.survey.name;
+          sessionStorage.setItem('currentUserId', this.survey.name);
+        }
+        
+        // Validate required fields
+        if (!this.validateSurvey()) {
+          alert('Please fill in all required fields');
+          return;
+        }
+        
         const response = await axios.post(`/api/session/${this.sessionId}/survey`, this.survey);
+        
+        if (response.data && response.data.currentUser) {
+          // Store the current user ID from the response
+          sessionStorage.setItem('currentUserId', response.data.currentUser);
+        }
         
         this.$emit('surveys-updated', response.data);
         this.submitted = true;
@@ -122,8 +144,28 @@ export default {
         
       } catch (error) {
         console.error('Error submitting survey:', error);
-        alert('Failed to submit survey. Please try again.');
+        if (error.response) {
+          alert(`Failed to submit survey: ${error.response.data.error || 'Unknown error'}`);
+        } else {
+          alert('Failed to submit survey. Please check your connection and try again.');
+        }
       }
+    },
+    
+    validateSurvey() {
+      // Check if all required fields are filled
+      for (const field of this.fields) {
+        if (field.props && field.props.required && !this.survey[field.key]) {
+          return false;
+        }
+      }
+      
+      // In named mode, name is required
+      if (!this.anonymousMode && !this.survey.name) {
+        return false;
+      }
+      
+      return true;
     }
   },
   created() {

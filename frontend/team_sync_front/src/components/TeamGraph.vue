@@ -82,8 +82,9 @@ export default {
 
       // Create nodes and links for each team
       this.teams.forEach((team, teamIndex) => {
-        // Each team is already an array of members
-        team.forEach((member, memberIndex) => {
+        // Handle both array-based teams and object-based teams
+        const members = Array.isArray(team) ? team : (team.members || []);
+        members.forEach((member, memberIndex) => {
           const nodeId = `${teamIndex}-${memberIndex}`;
           const node = {
             id: nodeId,

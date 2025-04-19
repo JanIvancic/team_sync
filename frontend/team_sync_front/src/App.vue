@@ -70,7 +70,11 @@
         </div>
       </div>
 
-      <TeamGraph v-if="teams.length" :teams="teams" />
+      <TeamGraph 
+        v-if="teams.length" 
+        :teams="teams" 
+        :anonymousMode="sessionSettings.anonymousMode" 
+      />
     </div>
 
     <!-- PARTICIPANT FLOW -->
@@ -118,7 +122,11 @@
         </div>
       </div>
 
-      <TeamGraph v-if="teams.length && sessionSettings.showTeamsToUsers" :teams="teams" />
+      <TeamGraph 
+        v-if="teams.length" 
+        :teams="teams" 
+        :anonymousMode="sessionSettings.anonymousMode" 
+      />
     </div>
   </div>
 </template>
@@ -132,8 +140,8 @@ import axios from 'axios'
 
 // Configure axios to use the correct base URL
 axios.defaults.baseURL = process.env.NODE_ENV === 'production' 
-  ? '/'  // In production, use relative paths
-  : 'http://localhost:5000';  // In development, use local backend
+  ? 'https://team-sync-app-8aa47d5c9ba6.herokuapp.com'  // Production URL
+  : 'http://localhost:5000';  // Development URL
 
 export default {
   name: 'App',
@@ -144,7 +152,6 @@ export default {
       isAdmin: false,
       settingsConfirmed: false,
       currentUser: null,
-      browserTabId: null,
       sessionSettings: {
         anonymousMode: false,
         showTeamsToUsers: true,
@@ -155,7 +162,8 @@ export default {
       },
       surveys: [],
       teams: [],
-      minResponses: 1
+      minResponses: 1,
+      pollInterval: null
     }
   },
   computed: {
@@ -207,34 +215,22 @@ export default {
     console.log('Browser tab ID:', this.browserTabId);
   },
   methods: {
-    onSessionCreated({ id, admin }) {
-      console.log(`Session created: id=${id}, admin=${admin}`);
+    onSessionCreated(data) {
+      this.sessionId = data.id;
+      this.isAdmin = data.isAdmin;
+      this.settingsConfirmed = data.settingsConfirmed;
+      this.sessionSettings = data.settings || this.sessionSettings;
       
-      // Set session ID
-      this.sessionId = id;
+      // Store current user ID
+      if (data.currentUser) {
+        sessionStorage.setItem('currentUserId', data.currentUser);
+        this.currentUser = data.currentUser;
+      }
       
-      // Set admin flag (ensure it's a boolean)
-      this.isAdmin = Boolean(admin);
-      
-      // IMPORTANT: Always start with settings not confirmed for admin
-      this.settingsConfirmed = false;
-      
-      console.log('Session created state:', {
-        sessionId: this.sessionId,
-        isAdmin: this.isAdmin,
-        settingsConfirmed: this.settingsConfirmed
-      });
-
-      // Fetch settings for both admin and non-admin users
-      this.fetchSessionSettings().then(() => {
-        // If not admin, confirm settings automatically
-        if (!this.isAdmin) {
-          this.settingsConfirmed = true;
-          // Start polling for both surveys and teams
-          this.pollSurveys();
-          this.pollTeams();
-        }
-      });
+      // Start polling for surveys and teams if not admin
+      if (!this.isAdmin) {
+        this.startPolling();
+      }
     },
 
     onSettingsSaved(settings) {
@@ -255,7 +251,7 @@ export default {
       this.saveSessionSettings();
       
       // Start polling for surveys
-      this.pollSurveys();
+      this.startPolling();
     },
 
     async saveSessionSettings() {
@@ -276,32 +272,39 @@ export default {
       }
     },
 
-    async fetchSessionSettings() {
-      try {
-        console.log('Fetching settings for session:', this.sessionId);
-        const res = await axios.get(`/api/session/${this.sessionId}/settings`);
-        const s = res.data;
-        this.sessionSettings = {
-          anonymousMode: s.anonymous_mode,
-          showTeamsToUsers: s.show_teams_to_users,
-          teamSize: s.team_size,
-          teamApproach: s.team_approach,
-          characteristics: s.characteristics,
-          similarityThreshold: s.similarity_threshold
-        };
-        console.log('Settings fetched and mapped:', this.sessionSettings);
-      } catch (error) {
-        console.error('Error fetching settings:', error);
-        // Use default settings if fetch fails
-        this.sessionSettings = {
-          anonymousMode: true, // Default to true for anonymous mode
-          showTeamsToUsers: true,
-          teamSize: 4,
-          teamApproach: "homogeni",
-          characteristics: ["tech_skills", "comm_skills", "creative_skills", "leadership_skills"],
-          similarityThreshold: 50
-        };
+    startPolling() {
+      // Clear any existing polling
+      if (this.pollInterval) {
+        clearInterval(this.pollInterval);
       }
+      
+      // Start polling every 3 seconds
+      this.pollInterval = setInterval(() => {
+        this.pollSurveys();
+        this.pollTeams();
+      }, 3000);
+    },
+
+    pollSurveys() {
+      axios.get(`/api/session/${this.sessionId}/surveys`)
+        .then(response => {
+          this.surveys = response.data;
+        })
+        .catch(error => {
+          console.error('Error polling surveys:', error);
+        });
+    },
+    
+    pollTeams() {
+      axios.get(`/api/session/${this.sessionId}/teams`)
+        .then(response => {
+          if (response.data && response.data.teams) {
+            this.teams = response.data.teams;
+          }
+        })
+        .catch(error => {
+          console.error('Error polling teams:', error);
+        });
     },
 
     onSurveysUpdated(data) {
@@ -336,58 +339,12 @@ export default {
       }
     },
 
-    async pollSurveys() {
-      console.log('Starting survey polling');
-      this.surveyInterval = setInterval(async () => {
-        try {
-          const res = await axios.get(`/api/session/${this.sessionId}/surveys`);
-          console.log('Polling surveys response:', res.data);
-          if (Array.isArray(res.data)) {
-            this.surveys = res.data;
-          }
-        } catch (error) {
-          console.error('Error polling surveys:', error);
-        }
-      }, 3000);
-    },
-
-    async pollTeams() {
-      console.log('Starting team polling');
-      this.teamInterval = setInterval(async () => {
-        try {
-          const res = await axios.get(`/api/session/${this.sessionId}/teams`);
-          console.log('Teams response:', res.data);
-          if (res.data && res.data.teams) {
-            // Store the teams data
-            this.teams = res.data.teams;
-            
-            // Log current state for debugging
-            const currentUserId = sessionStorage.getItem('currentUserId');
-            console.log('Updated teams state:', {
-              currentUserId,
-              teamsCount: this.teams.length,
-              teams: this.teams.map(t => ({
-                memberIds: t.members.map(m => m.id)
-              }))
-            });
-
-            // Force Vue to reactively update the teams
-            this.$nextTick(() => {
-              console.log('Teams updated, checking myTeam:', this.myTeam);
-            });
-          }
-        } catch (error) {
-          console.error('Error polling teams:', error);
-        }
-      }, 3000);
-    },
-
     async generateTeams() {
       try {
         console.log('Generating teams with settings:', this.sessionSettings);
-        // Ensure characteristics is always an array
+        // Convert characteristics Proxy to plain array
         const characteristics = Array.isArray(this.sessionSettings.characteristics) 
-          ? this.sessionSettings.characteristics 
+          ? [...this.sessionSettings.characteristics]  // Create a new plain array
           : ["tech_skills", "comm_skills", "creative_skills", "leadership_skills"];
         
         const settings = {
@@ -431,44 +388,20 @@ export default {
 
     isCurrentUser(member) {
       const currentUserId = sessionStorage.getItem('currentUserId');
-      console.log('Checking current user:', { 
-        currentUserId, 
-        memberId: member?.id, 
-        memberName: member?.name,
-        anonymousMode: this.sessionSettings.anonymousMode,
-        member: member
-      });
-      
-      if (!currentUserId || !member) {
-        console.log('No current user ID or invalid member');
-        return false;
-      }
+      if (!currentUserId || !member) return false;
       
       if (this.sessionSettings.anonymousMode) {
-        // In anonymous mode, compare user IDs directly
-        const isMatch = member.id === currentUserId;
-        console.log('Anonymous mode comparison:', { 
-          memberId: member.id, 
-          currentUserId, 
-          isMatch 
-        });
-        return isMatch;
+        return member.id === currentUserId;
       } else {
-        // In named mode, compare by name
-        const isMatch = member.name === currentUserId;
-        console.log('Named mode comparison:', { 
-          memberName: member.name, 
-          currentUserId, 
-          isMatch 
-        });
-        return isMatch;
+        return member.name === currentUserId;
       }
     }
   },
-  beforeUnmount() {
-    // Clean up intervals when component is unmounted
-    clearInterval(this.surveyInterval);
-    clearInterval(this.teamInterval);
+  beforeDestroy() {
+    // Clear polling interval when component is destroyed
+    if (this.pollInterval) {
+      clearInterval(this.pollInterval);
+    }
   }
 }
 </script>
