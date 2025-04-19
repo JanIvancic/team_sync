@@ -4,8 +4,6 @@
   "description": "Team formation application",
   "main": "index.js",
   "scripts": {
-    "heroku-prebuild": "cd frontend/team_sync_front && npm install && npm install @vue/cli @vue/cli-service @vue/cli-plugin-babel @vue/cli-plugin-eslint",
-    "heroku-postbuild": "cd frontend/team_sync_front && ./node_modules/.bin/vue-cli-service build && cd ../.. && mkdir -p static && cp -r frontend/team_sync_front/dist/* static/",
     "start": "gunicorn app:app"
   },
   "engines": {
