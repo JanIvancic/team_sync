@@ -4,8 +4,8 @@
   "description": "Team formation application",
   "main": "index.js",
   "scripts": {
-    "heroku-prebuild": "cd frontend/team_sync_front && npm install",
-    "heroku-postbuild": "bash build.sh",
+    "heroku-prebuild": "cd frontend/team_sync_front && npm install && npm install @vue/cli-service",
+    "heroku-postbuild": "cd frontend/team_sync_front && npm run build && cd ../.. && mkdir -p static && cp -r frontend/team_sync_front/dist/* static/",
     "start": "gunicorn app:app"
   },
   "engines": {
