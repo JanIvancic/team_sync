@@ -4,5 +4,9 @@ build:
     - nodejs
   packages:
     - nodejs
+  scripts:
+    - cd frontend/team_sync_front && npm install && npm run build
+    - mkdir -p static
+    - cp -r frontend/team_sync_front/dist/* static/
 run:
   web: gunicorn backend.app:app 

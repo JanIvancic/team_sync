@@ -17,7 +17,7 @@ load_dotenv()
 
 # Get the absolute path for static files
 root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-static_folder = os.path.join(root_dir, 'frontend', 'team_sync_front', 'dist')
+static_folder = os.path.join(root_dir, 'static')
 print(f"Root directory: {root_dir}")
 print(f"Static folder path: {static_folder}")
 print(f"Static folder exists: {os.path.exists(static_folder)}")

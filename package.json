@@ -4,10 +4,11 @@
   "description": "Team formation application",
   "main": "index.js",
   "scripts": {
-    "start": "gunicorn app:app"
+    "start": "gunicorn app:app",
+    "heroku-postbuild": "cd frontend/team_sync_front && npm install && npm run build && cd ../.. && mkdir -p static && cp -r frontend/team_sync_front/dist/* static/"
   },
   "engines": {
-    "node": "14.21.3",
+    "node": "16.x",
     "npm": "6.14.18"
   }
 } 
