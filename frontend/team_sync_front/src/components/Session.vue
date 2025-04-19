@@ -25,7 +25,7 @@ export default {
         // We're setting a flag in localStorage to indicate that we're in the admin flow
         localStorage.setItem('isAdminFlow', 'true');
 
-        const payload = { id: res.data.session_id, admin: true };
+        const payload = { id: res.data.id, admin: true };
         console.log('Emitting session-created with payload:', payload);
         this.$emit('session-created', payload);
       } catch (error) {
