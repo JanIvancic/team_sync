@@ -210,14 +210,16 @@ def get_teams(sid):
     
     return jsonify({"teams": formatted_teams}), 200
 
-# Serve React App
-@app.route('/', defaults={'path': ''})
+# Serve static files and SPA routes
+@app.route('/')
+def root():
+    return send_from_directory(app.static_folder, 'index.html')
+
 @app.route('/<path:path>')
-def serve(path):
-    if path and os.path.exists(os.path.join(app.static_folder, path)):
+def serve_static(path):
+    if os.path.exists(os.path.join(app.static_folder, path)):
         return send_from_directory(app.static_folder, path)
-    else:
-        return send_from_directory(app.static_folder, 'index.html')
+    return send_from_directory(app.static_folder, 'index.html')
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
