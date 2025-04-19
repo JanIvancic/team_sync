@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Team formation application",
   "scripts": {
-    "build": "sh build.sh",
+    "build": "cd frontend/team_sync_front && npm install && npm run build && cd ../.. && mkdir -p static && cp -r frontend/team_sync_front/dist/* static/",
     "start": "python backend/app.py"
   },
   "engines": {
