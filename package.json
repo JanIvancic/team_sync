@@ -2,16 +2,17 @@
   "name": "team-sync",
   "version": "1.0.0",
   "description": "Team formation application",
+  "main": "index.js",
   "scripts": {
-    "preinstall": "cd frontend/team_sync_front && npm install",
-    "postinstall": "cd frontend/team_sync_front && npm run build",
-    "start": "gunicorn backend.app:app"
+    "heroku-prebuild": "cd frontend/team_sync_front && npm install",
+    "heroku-postbuild": "bash build.sh",
+    "start": "gunicorn app:app"
   },
   "engines": {
-    "node": "14.x",
-    "npm": "6.x"
+    "node": ">=14.0.0",
+    "npm": ">=6.0.0"
   },
-  "cacheDirectories": [
-    "frontend/team_sync_front/node_modules"
-  ]
+  "dependencies": {
+    "gunicorn": "^20.1.0"
+  }
 } 
