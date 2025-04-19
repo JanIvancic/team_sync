@@ -3,12 +3,15 @@
   "version": "1.0.0",
   "description": "Team formation application",
   "scripts": {
-    "postinstall": "cd frontend/team_sync_front && npm install",
-    "build": "bash build.sh",
+    "preinstall": "cd frontend/team_sync_front && npm install",
+    "postinstall": "cd frontend/team_sync_front && npm run build",
     "start": "gunicorn backend.app:app"
   },
   "engines": {
     "node": "14.x",
     "npm": "6.x"
-  }
+  },
+  "cacheDirectories": [
+    "frontend/team_sync_front/node_modules"
+  ]
 } 

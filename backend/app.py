@@ -17,11 +17,13 @@ load_dotenv()
 app = Flask(__name__, static_folder='../frontend/team_sync_front/dist')
 CORS(app, resources={
     r"/api/*": {
-        "origins": ["http://localhost:8080", "http://localhost:8081"],
+        "origins": ["http://localhost:8080", "http://localhost:8081", "https://team-sync-app-2028a22681a2.herokuapp.com"],
         "methods": ["GET", "POST", "OPTIONS"],
         "allow_headers": ["Content-Type"]
     }
 })
+
+# Use Heroku Redis URL if available, otherwise use local Redis
 redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 redis_client = Redis.from_url(redis_url, decode_responses=True)
 
