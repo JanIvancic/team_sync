@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "serve": "esbuild src/main.js --bundle --outfile=dist/bundle.js --servedir=dist",
-    "build": "node build.js",
-    "preview": "esbuild src/main.js --bundle --outfile=dist/bundle.js --servedir=dist"
+    "serve": "vue-cli-service serve",
+    "build": "vue-cli-service build",
+    "lint": "vue-cli-service lint"
   },
   "dependencies": {
     "axios": "^0.21.1",
@@ -13,11 +13,19 @@
     "vue": "^3.0.0",
     "vue-router": "^4.0.0-0",
     "vuex": "^4.0.0-0",
-    "esbuild": "^0.19.0",
-    "esbuild-plugin-vue3": "^0.3.0"
+    "d3": "^7.9.0"
   },
   "devDependencies": {
-    "vite": "^4.0.0"
+    "@vue/cli-plugin-babel": "~5.0.0",
+    "@vue/cli-plugin-eslint": "~5.0.0",
+    "@vue/cli-plugin-router": "~5.0.0",
+    "@vue/cli-plugin-vuex": "~5.0.0",
+    "@vue/cli-service": "~5.0.0",
+    "@vue/compiler-sfc": "^3.0.0",
+    "@babel/eslint-parser": "^7.12.16",
+    "babel-eslint": "^10.1.0",
+    "eslint": "^7.32.0",
+    "eslint-plugin-vue": "^8.0.3"
   },
   "eslintConfig": {
     "root": true,
