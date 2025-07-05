@@ -33,6 +33,19 @@ pip install -r requirements.txt
 python app.py
 ```
 
+### Exposing the app with ngrok
+
+To share the locally running app over the internet you can use `ngrok`.
+Install the additional dependency and run the helper script,
+which launches the Flask server and exposes port 5000 through ngrok:
+
+```
+pip install pyngrok
+python run_with_ngrok.py
+```
+The terminal will display a public URL that forwards traffic to your local
+Flask server.
+
 ### Frontend Setup
 
 1. Navigate to the frontend directory:
