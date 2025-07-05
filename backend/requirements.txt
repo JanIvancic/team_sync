@@ -5,3 +5,4 @@ numpy==1.25.2
 pandas==2.1.1
 python-dotenv==1.0.0
 redis==4.5.0
+pyngrok==6.0.0
