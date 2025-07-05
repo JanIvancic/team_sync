@@ -1,7 +1,7 @@
 <template>
-  <div>
+  <div class="graph-container">
     <h2>Teams</h2>
-    <div ref="cy" style="width:100%; height:400px; margin-top:20px; border: 1px solid #ddd; border-radius: 4px;"></div>
+    <div ref="cy" class="graph"></div>
   </div>
 </template>
 
@@ -133,3 +133,17 @@ export default {
   }
 }
 </script>
+
+<style scoped>
+.graph-container {
+  margin-top: 30px;
+}
+
+.graph {
+  width: 100%;
+  height: 400px;
+  margin-top: 20px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+</style>

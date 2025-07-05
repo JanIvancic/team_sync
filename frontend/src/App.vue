@@ -1,18 +1,27 @@
 <template>
   <div id="app">
     <Session @session-created="onSessionCreated" />
+
+    <div v-if="sessionId" class="session-banner">
+      <p>Session Code: <strong>{{ sessionId }}</strong></p>
+      <p v-if="isAdmin">Share this code with participants to join.</p>
+    </div>
+
     <SurveyForm
       v-if="sessionId"
       :sessionId="sessionId"
       :isAdmin="isAdmin"
       @surveys-updated="onSurveysUpdated"
     />
-    <div v-if="sessionId && isAdmin" style="margin-top:20px">
+
+    <div v-if="sessionId && isAdmin" class="admin-tools">
       <p>Responses: {{ surveys.length }}</p>
       <button @click="fetchTeams" :disabled="surveys.length < minResponses">
         Generate Teams
       </button>
+      <p v-if="surveys.length < minResponses" class="hint">Waiting for more responses...</p>
     </div>
+
     <TeamGraph v-if="teams.length" :teams="teams" />
   </div>
 </template>
@@ -107,5 +116,21 @@ input, select {
   margin: 5px;
   border: 1px solid #ddd;
   border-radius: 4px;
+}
+
+.session-banner {
+  margin-bottom: 20px;
+  padding: 10px;
+  background: #f5f5f5;
+  border-radius: 4px;
+}
+
+.admin-tools {
+  margin-top: 20px;
+}
+
+.hint {
+  font-size: 0.9em;
+  color: #888;
 }
 </style>
