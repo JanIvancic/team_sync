@@ -125,7 +125,12 @@ export default {
           }
         } else {
           // use the participant's name when not anonymous
+
+          const cleanName = (this.survey.name || '').trim();
+          sessionStorage.setItem('currentUserId', cleanName);
+
           sessionStorage.setItem('currentUserId', this.survey.name);
+
         }
 
         // Store in sessionStorage that this user has submitted
