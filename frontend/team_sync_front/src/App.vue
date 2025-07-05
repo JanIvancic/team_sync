@@ -425,6 +425,23 @@ export default {
     },
 
     isCurrentUser(member) {
+
+      const storedId = sessionStorage.getItem('currentUserId');
+      const storedName = sessionStorage.getItem('currentUserName');
+
+      if (!member) {
+        return false;
+      }
+
+      const matchId = storedId && member.id && member.id === storedId;
+      const memberName = (member.name || '').trim().toLowerCase();
+      const nameMatch =
+        storedName && memberName === storedName.trim().toLowerCase();
+      const legacyMatch =
+        storedId && memberName === storedId.trim().toLowerCase();
+
+      return matchId || nameMatch || legacyMatch;
+
       const currentUserId = sessionStorage.getItem('currentUserId');
       console.log('Checking current user:', {
         currentUserId,
@@ -462,6 +479,7 @@ export default {
         });
         return isMatch;
       }
+
     }
   },
   beforeUnmount() {

@@ -90,10 +90,12 @@ def submit_survey(sid):
     if missing:
         return jsonify({"error": f"Missing fields: {missing}"}), 400
 
-    # Anonymous mode: assign id & name
+    # Always assign a unique user id if one was not provided
+    idx = len(sess["users"]) + 1
+    data.setdefault("id", f"user_{idx}")
+
+    # In anonymous mode also replace the provided name
     if settings.get("anonymous_mode"):
-        idx        = len(sess["users"]) + 1
-        data["id"] = f"user_{idx}"
         data["name"] = f"User {idx}"
 
     sess["users"].append(data)

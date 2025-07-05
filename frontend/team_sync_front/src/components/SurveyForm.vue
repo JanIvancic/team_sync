@@ -117,6 +117,16 @@ export default {
         this.$emit('surveys-updated', response.data);
         this.submitted = true;
 
+
+        // Persist identifiers for highlighting the current user
+        if (response.data && response.data.user_id) {
+          sessionStorage.setItem('currentUserId', response.data.user_id);
+        }
+
+        if (!this.anonymousMode) {
+          const cleanName = (this.survey.name || '').trim();
+          sessionStorage.setItem('currentUserName', cleanName);
+
         // Persist the identifier for highlighting the current user
         if (this.anonymousMode) {
           // backend returns a generated ID in anonymous mode
@@ -205,7 +215,7 @@ button {
   color: #666;
   font-style: italic;
   text-align: center;
-}
+
 
 .success-message {
   padding: 20px;

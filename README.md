@@ -35,8 +35,6 @@ python app.py
 
 ### Exposing the app with ngrok
 
-```
-pip install pyngrok
 python run_with_ngrok.py
 ```
 The terminal will display a public URL that forwards traffic to your local
