@@ -425,6 +425,7 @@ export default {
     },
 
     isCurrentUser(member) {
+
       const storedId = sessionStorage.getItem('currentUserId');
       const storedName = sessionStorage.getItem('currentUserName');
 
@@ -440,6 +441,45 @@ export default {
         storedId && memberName === storedId.trim().toLowerCase();
 
       return matchId || nameMatch || legacyMatch;
+
+      const currentUserId = sessionStorage.getItem('currentUserId');
+      console.log('Checking current user:', {
+        currentUserId,
+        memberId: member?.id,
+        memberName: member?.name,
+        anonymousMode: this.sessionSettings.anonymousMode,
+        member: member
+      });
+      
+      if (!currentUserId || !member) {
+        console.log('No current user ID or invalid member');
+        return false;
+      }
+      
+      if (this.sessionSettings.anonymousMode) {
+        // In anonymous mode, compare user IDs directly
+        const isMatch = member.id === currentUserId;
+        console.log('Anonymous mode comparison:', {
+          memberId: member.id,
+          currentUserId,
+          isMatch
+        });
+        return isMatch;
+      } else {
+        // In named mode, compare by cleaned name
+        const memberName = (member.name || '').trim().toLowerCase();
+        const storedName = currentUserId.trim().toLowerCase();
+        const isMatch = memberName === storedName || member.id === currentUserId;
+        console.log('Named mode comparison:', {
+          memberName,
+          storedName,
+          memberId: member.id,
+          currentUserId,
+          isMatch
+        });
+        return isMatch;
+      }
+
     }
   },
   beforeUnmount() {
