@@ -62,7 +62,7 @@
           <div v-for="(team, index) in teams" :key="index" class="team-card">
             <h3>Team {{ index + 1 }}</h3>
             <ul>
-              <li v-for="(member, memberIndex) in team.members" :key="memberIndex">
+              <li v-for="(member, memberIndex) in team.members" :key="member.id || member.name || memberIndex">
                 {{ member.name }}
               </li>
             </ul>
@@ -96,10 +96,10 @@
           >
             <h3>Team {{ index + 1 }}</h3>
             <ul>
-              <li 
-                v-for="(member, idx) in team.members" 
-                :key="member.id"
-                :class="{ 
+              <li
+                v-for="(member, idx) in team.members"
+                :key="member.id || member.name || idx"
+                :class="{
                   'current-user': isCurrentUser(member),
                   'anonymous-user': sessionSettings.anonymousMode
                 }"
@@ -425,39 +425,21 @@ export default {
     },
 
     isCurrentUser(member) {
-      const currentUserId = sessionStorage.getItem('currentUserId');
-      console.log('Checking current user:', { 
-        currentUserId, 
-        memberId: member?.id, 
-        memberName: member?.name,
-        anonymousMode: this.sessionSettings.anonymousMode,
-        member: member
-      });
-      
-      if (!currentUserId || !member) {
-        console.log('No current user ID or invalid member');
+      const storedId = sessionStorage.getItem('currentUserId');
+      const storedName = sessionStorage.getItem('currentUserName');
+
+      if (!member) {
         return false;
       }
-      
-      if (this.sessionSettings.anonymousMode) {
-        // In anonymous mode, compare user IDs directly
-        const isMatch = member.id === currentUserId;
-        console.log('Anonymous mode comparison:', { 
-          memberId: member.id, 
-          currentUserId, 
-          isMatch 
-        });
-        return isMatch;
-      } else {
-        // In named mode, compare by name
-        const isMatch = member.name === currentUserId;
-        console.log('Named mode comparison:', { 
-          memberName: member.name, 
-          currentUserId, 
-          isMatch 
-        });
-        return isMatch;
-      }
+
+      const matchId = storedId && member.id && member.id === storedId;
+      const memberName = (member.name || '').trim().toLowerCase();
+      const nameMatch =
+        storedName && memberName === storedName.trim().toLowerCase();
+      const legacyMatch =
+        storedId && memberName === storedId.trim().toLowerCase();
+
+      return matchId || nameMatch || legacyMatch;
     }
   },
   beforeUnmount() {

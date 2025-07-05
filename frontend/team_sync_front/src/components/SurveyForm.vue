@@ -113,10 +113,20 @@ export default {
     async submitSurvey() {
       try {
         const response = await axios.post(`/api/session/${this.sessionId}/survey`, this.survey);
-        
+
         this.$emit('surveys-updated', response.data);
         this.submitted = true;
-        
+
+        // Persist identifiers for highlighting the current user
+        if (response.data && response.data.user_id) {
+          sessionStorage.setItem('currentUserId', response.data.user_id);
+        }
+
+        if (!this.anonymousMode) {
+          const cleanName = (this.survey.name || '').trim();
+          sessionStorage.setItem('currentUserName', cleanName);
+        }
+
         // Store in sessionStorage that this user has submitted
         sessionStorage.setItem(`survey_submitted_${this.sessionId}`, 'true');
         
