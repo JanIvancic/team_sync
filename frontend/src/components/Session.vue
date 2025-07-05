@@ -1,8 +1,10 @@
 <template>
-  <div>
+  <div class="session-container">
     <button @click="createSession">Create Session</button>
-    <input v-model="joinId" placeholder="Session code" style="margin-left:10px"/>
-    <button @click="joinSession" style="margin-left:5px">Join</button>
+    <div class="join-group">
+      <input v-model="joinId" placeholder="Enter session code" />
+      <button @click="joinSession">Join</button>
+    </div>
   </div>
 </template>
 
@@ -32,7 +34,14 @@ export default {
 </script>
 
 <style scoped>
-div {
+.session-container {
   margin-bottom: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.join-group {
+  margin-top: 10px;
 }
 </style>

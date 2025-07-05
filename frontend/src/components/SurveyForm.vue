@@ -12,6 +12,7 @@
             {{ opt.label }}
           </option>
         </component>
+        <span v-if="field.type === 'slider'" class="slider-value">{{ survey[field.key] }}</span>
       </div>
       <button type="submit">Submit Survey</button>
     </form>
@@ -130,5 +131,10 @@ select {
 button {
   align-self: center;
   margin-top: 20px;
+}
+
+.slider-value {
+  margin-left: 8px;
+  font-weight: bold;
 }
 </style>
