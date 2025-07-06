@@ -78,3 +78,6 @@ dist/
 .env.development.local
 .env.test.local
 .env.production.local 
+backend/__pycache__/team_logic.cpython-313.pyc
+backend/__pycache__/team_logic.cpython-313.pyc
+backend/__pycache__/team_logic.cpython-313.pyc

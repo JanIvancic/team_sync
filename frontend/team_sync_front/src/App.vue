@@ -39,12 +39,17 @@
           </div>
           <div class="setting-group">
             <label>Characteristics:</label>
-            <select v-model="sessionSettings.characteristics" multiple>
-              <option value="tech_skills">Technical Skills</option>
-              <option value="comm_skills">Communication Skills</option>
-              <option value="creative_skills">Creative Skills</option>
-              <option value="leadership_skills">Leadership Skills</option>
-            </select>
+            <div class="characteristics-checkboxes">
+              <div class="checkbox-item" v-for="char in availableCharacteristics" :key="char.value">
+                <input 
+                  type="checkbox" 
+                  :id="char.value" 
+                  :value="char.value" 
+                  v-model="sessionSettings.characteristics"
+                >
+                <label :for="char.value">{{ char.label }}</label>
+              </div>
+            </div>
           </div>
           <div class="setting-group">
             <label>Similarity Threshold (%):</label>
@@ -145,9 +150,21 @@ export default {
         showTeamsToUsers: true,
         teamSize: 4,
         teamApproach: "homogeni",
-        characteristics: ["tech_skills", "comm_skills", "creative_skills", "leadership_skills"],
+        characteristics: ["tech_skills", "comm_skills", "creative_skills", "leadership_skills", "pressure_handling", "team_satisfaction", "flexibility", "leadership_frequency", "idea_frequency", "self_learning_readiness"],
         similarityThreshold: 50
       },
+      availableCharacteristics: [
+        { value: "tech_skills", label: "Technical Skills" },
+        { value: "comm_skills", label: "Communication Skills" },
+        { value: "creative_skills", label: "Creative Skills" },
+        { value: "leadership_skills", label: "Leadership Skills" },
+        { value: "pressure_handling", label: "Pressure Handling" },
+        { value: "team_satisfaction", label: "Team Satisfaction" },
+        { value: "flexibility", label: "Flexibility" },
+        { value: "leadership_frequency", label: "Leadership Frequency" },
+        { value: "idea_frequency", label: "Idea Frequency" },
+        { value: "self_learning_readiness", label: "Self-Learning Readiness" }
+      ],
       surveys: [],
       teams: [],
       minResponses: 1
@@ -293,7 +310,7 @@ export default {
           showTeamsToUsers: true,
           teamSize: 4,
           teamApproach: "homogeni",
-          characteristics: ["tech_skills", "comm_skills", "creative_skills", "leadership_skills"],
+          characteristics: ["tech_skills", "comm_skills", "creative_skills", "leadership_skills", "pressure_handling", "team_satisfaction", "flexibility", "leadership_frequency", "idea_frequency", "self_learning_readiness"],
           similarityThreshold: 50
         };
       }
@@ -383,7 +400,7 @@ export default {
         // Ensure characteristics is always an array
         const characteristics = Array.isArray(this.sessionSettings.characteristics) 
           ? this.sessionSettings.characteristics 
-          : ["tech_skills", "comm_skills", "creative_skills", "leadership_skills"];
+          : ["tech_skills", "comm_skills", "creative_skills", "leadership_skills", "pressure_handling", "team_satisfaction", "flexibility", "leadership_frequency", "idea_frequency", "self_learning_readiness"];
         
         const settings = {
           team_size: parseInt(this.sessionSettings.teamSize),
@@ -425,61 +442,48 @@ export default {
     },
 
     isCurrentUser(member) {
-
-      const storedId = sessionStorage.getItem('currentUserId');
-      const storedName = sessionStorage.getItem('currentUserName');
-
       if (!member) {
         return false;
       }
 
-      const matchId = storedId && member.id && member.id === storedId;
+      const storedId = sessionStorage.getItem('currentUserId');
+
+      if (!storedId) {
+        return false;
+      }
+
       const memberName = (member.name || '').trim().toLowerCase();
-      const nameMatch =
-        storedName && memberName === storedName.trim().toLowerCase();
-      const legacyMatch =
-        storedId && memberName === storedId.trim().toLowerCase();
 
-      return matchId || nameMatch || legacyMatch;
-
-      const currentUserId = sessionStorage.getItem('currentUserId');
       console.log('Checking current user:', {
-        currentUserId,
+        currentUserId: storedId,
         memberId: member?.id,
         memberName: member?.name,
         anonymousMode: this.sessionSettings.anonymousMode,
         member: member
       });
       
-      if (!currentUserId || !member) {
-        console.log('No current user ID or invalid member');
-        return false;
-      }
-      
       if (this.sessionSettings.anonymousMode) {
         // In anonymous mode, compare user IDs directly
-        const isMatch = member.id === currentUserId;
+        const isMatch = member.id === storedId;
         console.log('Anonymous mode comparison:', {
           memberId: member.id,
-          currentUserId,
+          currentUserId: storedId,
           isMatch
         });
         return isMatch;
       } else {
         // In named mode, compare by cleaned name
-        const memberName = (member.name || '').trim().toLowerCase();
-        const storedName = currentUserId.trim().toLowerCase();
-        const isMatch = memberName === storedName || member.id === currentUserId;
+        const storedNameLower = storedId.trim().toLowerCase();
+        const isMatch = memberName === storedNameLower || member.id === storedId;
         console.log('Named mode comparison:', {
           memberName,
-          storedName,
+          storedName: storedNameLower,
           memberId: member.id,
-          currentUserId,
+          currentUserId: storedId,
           isMatch
         });
         return isMatch;
       }
-
     }
   },
   beforeUnmount() {
@@ -678,5 +682,29 @@ input, select {
 
 .team-card li:last-child {
   border-bottom: none;
+}
+
+.characteristics-checkboxes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.checkbox-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.checkbox-item input[type="checkbox"] {
+  margin: 0;
+  width: auto;
+}
+
+.checkbox-item label {
+  margin: 0;
+  font-weight: normal;
+  cursor: pointer;
 }
 </style>

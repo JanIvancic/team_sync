@@ -57,7 +57,10 @@ def create_session():
             "team_approach": "homogeni",
             "characteristics": [
                 "tech_skills", "comm_skills",
-                "creative_skills", "leadership_skills"
+                "creative_skills", "leadership_skills",
+                "pressure_handling", "team_satisfaction",
+                "flexibility", "leadership_frequency",
+                "idea_frequency", "self_learning_readiness"
             ],
             "similarity_threshold": 50
         }
