@@ -27,7 +27,8 @@ app = Flask(
 
 # ==== CORS & REDIS ====
 # ==== CORS & REDIS ====
-CORS(app, resources={r"/api/*": {"origins": os.getenv("CORS_ORIGINS", "*")}})
+#CORS(app, resources={r"/api/*": {"origins": os.getenv("CORS_ORIGINS", "*")}})
+CORS(app, origins="*")
 
 redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 app.logger.info(f"Using REDIS_URL: {redis_url}")
@@ -220,6 +221,10 @@ def serve(path):
     if path and os.path.exists(full_path):
         return app.send_static_file(path)
     return app.send_static_file("index.html")
+
+@app.route("/api/test")
+def test():
+    return {"msg": "CORS works!"}
 
 # ==== RUN ====
 if __name__ == "__main__":

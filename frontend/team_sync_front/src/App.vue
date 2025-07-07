@@ -23,6 +23,7 @@
       </div>
 
       <div style="margin-top:20px">
+        <p>Debug: isAdmin={{ isAdmin }}, settingsConfirmed={{ settingsConfirmed }}</p>
         <p>Responses: {{ surveys.length }}</p>
         <div class="team-settings">
           <h3>Team Generation Settings</h3>
@@ -45,7 +46,8 @@
                   type="checkbox" 
                   :id="char.value" 
                   :value="char.value" 
-                  v-model="sessionSettings.characteristics"
+                  :checked="sessionSettings.characteristics && sessionSettings.characteristics.includes(char.value)"
+                  @change="toggleCharacteristic(char.value)"
                 >
                 <label :for="char.value">{{ char.label }}</label>
               </div>
@@ -135,6 +137,11 @@ import TeamGraph from './components/TeamGraph.vue'
 import AdminSettings from './components/AdminSettings.vue'
 import axios from 'axios'
 
+// Configure axios base URL
+if (window.API_BASE_URL) {
+  axios.defaults.baseURL = window.API_BASE_URL;
+}
+
 export default {
   name: 'App',
   components: { Session, SurveyForm, TeamGraph, AdminSettings },
@@ -219,6 +226,22 @@ export default {
     console.log('Browser tab ID:', this.browserTabId);
   },
   methods: {
+    toggleCharacteristic(value) {
+      // Ensure characteristics is always an array
+      if (!this.sessionSettings.characteristics) {
+        this.sessionSettings.characteristics = [];
+      }
+      
+      const index = this.sessionSettings.characteristics.indexOf(value);
+      if (index > -1) {
+        // Remove if already selected
+        this.sessionSettings.characteristics.splice(index, 1);
+      } else {
+        // Add if not selected
+        this.sessionSettings.characteristics.push(value);
+      }
+    },
+
     onSessionCreated({ id, admin }) {
       console.log(`Session created: id=${id}, admin=${admin}`);
       

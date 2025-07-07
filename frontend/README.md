@@ -1,20 +1,8 @@
-# Team Sync Frontend
-
-## Project setup
-```
-npm install
-```
-
-### Compiles and hot-reloads for development
-```
+pokrenut FE
 npm run serve
-```
 
-### Compiles and minifies for production
-```
-npm run build
-```
+pokrenut BE
+npm run serve
 
-## Notes
-- Make sure the backend server is running on http://localhost:5000
-- The frontend will proxy API requests to the backend
+pokrenut ovo nakon kaj se pokrenu FR i BE
+python start_ngrok.py
