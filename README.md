@@ -28,7 +28,11 @@ source venv/bin/activate  # macOS/Linux
 pip install -r requirements.txt
 ```
 
-4. Run the Flask application:
+4. Copy the example environment file:
+```
+cp .env.example .env
+```
+5. Run the Flask application:
 ```
 python app.py
 ```

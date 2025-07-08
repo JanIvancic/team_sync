@@ -21,7 +21,11 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-4. Run the Flask application:
+4. Copy the example environment file and adjust values if needed:
+```
+cp .env.example .env
+```
+5. Run the Flask application:
 ```
 python app.py
 ```
